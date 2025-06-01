@@ -67,11 +67,9 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({ player, upgrades, lo
             <div className="flex justify-between items-center mb-3 sm:mb-4">
               <h2 className="text-xl sm:text-2xl" style={titleStyle}>SYSTEM AUGMENTS</h2>
               <div className="flex items-center text-xl sm:text-2xl" style={{...titleStyle, fontWeight: '700'}}>
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-1.5">
-                  <circle cx="10" cy="10" r="8" stroke={UI_STROKE_PRIMARY} strokeWidth="1.5"/>
-                  <line x1="7" y1="10" x2="13" y2="10" stroke={UI_STROKE_PRIMARY} strokeWidth="1.5" strokeLinecap="round" />
-                  <line x1="10" y1="7" x2="10" y2="13" stroke={UI_STROKE_PRIMARY} strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
+                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-1" aria-hidden="true">
+                    <circle cx="8" cy="8" r="6.5" stroke={UI_STROKE_PRIMARY} strokeWidth="1.5"/>
+                    </svg>
                 {player.coins}
               </div>
             </div>

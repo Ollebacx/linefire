@@ -23,7 +23,7 @@ const WaveStartTitle: React.FC<WaveStartTitleProps> = ({ text, opacity }) => {
       aria-atomic="true"
     >
       <h2
-        className="text-5xl sm:text-7xl lg:text-8xl select-none tracking-wider"
+        className="text-3xl sm:text-3xl lg:text-3xl select-none tracking-wider"
         style={{
           fontFamily: "'Inter', sans-serif",
           fontWeight: '300', // Changed from 700 to 300 (Light)

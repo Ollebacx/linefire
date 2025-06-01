@@ -155,14 +155,14 @@ const HUD: React.FC<HUDProps> = ({
             className={`text-right ${tutorialHighlightTarget === 'wave' ? 'hud-highlight' : ''}`}
             data-tutorial-highlight-id="wave"
           >
-            <h2 style={{...headingStyle, fontWeight: '600'}}>Wave: {round}</h2>
+            <h2 style={{...headingStyle, fontWeight: '600'}}>Wave {round}</h2>
             {gameStatus === 'PLAYING' && nextRoundTimer !== undefined && nextRoundTimer > 0 && enemiesLeft >= totalEnemiesThisRound && (
               <p style={{...smallTextStyle, color: UI_STROKE_SECONDARY, fontWeight: '400' }} className="mt-0.5">
                 Next: <span style={{color: UI_STROKE_PRIMARY, fontWeight: '500'}}>{Math.ceil(nextRoundTimer)}s</span>
               </p>
             )}
           </div>
-          <button
+          {/* <button
             onClick={onToggleMute}
             className="p-1.5 sm:p-2 rounded-md"
             style={{ border: `1.5px solid ${UI_STROKE_PRIMARY}`, backgroundColor: UI_BACKGROUND_NEUTRAL }}
@@ -170,7 +170,7 @@ const HUD: React.FC<HUDProps> = ({
             aria-pressed={isMuted}
           >
             {isMuted ? <SpeakerXMarkIcon className="w-4 h-4 sm:w-5 sm:h-5" style={{color: UI_STROKE_PRIMARY}} /> : <SpeakerWaveIcon className="w-4 h-4 sm:w-5 sm:h-5" style={{color: UI_STROKE_PRIMARY}} />}
-          </button>
+          </button> */}
           <button
             onClick={onPauseToggle}
             className="p-1.5 sm:p-2 rounded-md"
