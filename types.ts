@@ -1,7 +1,3 @@
-
-import { CheckIcon, BoltIcon, ShieldCheckIcon, BanknotesIcon, UsersIcon, LockClosedIcon } from '@heroicons/react/24/outline';
-
-
 export interface Position {
   x: number;
   y: number;
