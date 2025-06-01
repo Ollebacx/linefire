@@ -52,8 +52,9 @@ const getInitialGameState = (currentInitialGameArea: Size, isTouchDeviceValue: b
     const initialPlayer = { ...INITIAL_PLAYER_STATE,
         allies: [], championType: undefined, pathHistory: [], color: UI_STROKE_PRIMARY,
         lastShootingDirection: { x: 1, y: 0 }, initialAllyBonus: 0, comboCount: 0,
-        currentRunKills: 0, currentRunTanksDestroyed: 0, currentRunCoinsEarned: 0, kills: 0, 
+        currentRunKills: 0, currentRunTanksDestroyed: 0, currentRunCoinsEarned: 0, kills: 0,
         highestComboCount: 0, maxSquadSizeAchieved: 0, playerHitTimer: 0,
+        highestRoundAchievedThisRun: 0, // Initialize
         // Initialize player airstrike fields
         airstrikeAvailable: false, airstrikeActive: false, airstrikesPending: 0, airstrikeSpawnTimer: 0,
     };
@@ -65,7 +66,7 @@ const getInitialGameState = (currentInitialGameArea: Size, isTouchDeviceValue: b
         initialPlayer.y + initialPlayer.height / 2 - currentInitialGameArea.height / 2,
         WORLD_AREA.height - currentInitialGameArea.height
     ));
-    
+
     const initialLogs: LogEntry[] = INITIAL_LOG_DEFINITIONS.map(def => ({
         id: def.id,
         name: def.name,
@@ -358,7 +359,7 @@ export const useGameLogic = (
       const currentTotalEnemiesThisRound = ROUND_BASE_ENEMY_COUNT + (currentRoundNumber - 1) * ROUND_ENEMY_INCREMENT;
       const initialEnemiesToSpawnImmediately = INITIAL_ENEMIES_AT_ROUND_START;
       const newInitialEnemies: Enemy[] = [];
-      
+
       for (let i = 0; i < initialEnemiesToSpawnImmediately; i++) {
           const typeToSpawn = determineNextEnemyType(currentRoundNumber, newInitialEnemies, prev.specialEnemyState);
           if (typeToSpawn) {
@@ -380,7 +381,7 @@ export const useGameLogic = (
         nextRoundTimer: 0,
         cameraShake: null,
         specialEnemyState: { ...INITIAL_SPECIAL_ENEMY_SPAWN_STATE },
-        airstrikeActive: false, 
+        airstrikeActive: false,
         airstrikesPending: 0,
         pendingInitialSpawns: enemiesToSpawnGraduallyAtStart,
         initialSpawnTickCounter: enemiesToSpawnGraduallyAtStart > 0 ? INITIAL_SPAWN_INTERVAL_TICKS : 0,
@@ -430,7 +431,7 @@ export const useGameLogic = (
         let newPlayer = { ...player, allies: player.allies.map(a => ({...a, pathHistory: a.pathHistory ? [...a.pathHistory] : []})), pathHistory: [...player.pathHistory] };
         let newProjectilesCreatedThisTick: Projectile[] = [];
         let newCamera = { ...prevCamera };
-        let newTutorialEntities = { 
+        let newTutorialEntities = {
             enemies: tutorialEntities.enemies.map(e => ({...e})),
             coins: tutorialEntities.coins.map(c => ({...c})),
             collectibleAllies: tutorialEntities.collectibleAllies.map(ca => ({...ca})),
@@ -478,7 +479,7 @@ export const useGameLogic = (
 
         // Player Shooting Logic (active steps only)
         const isShootingAllowedStep = tutorialStep >= 1 && ![4, 5, 6, 7].includes(tutorialStep); // Disabled during HUD explanation steps
-        if (isShootingAllowedStep) { 
+        if (isShootingAllowedStep) {
             newPlayer.shootTimer = Math.max(0, newPlayer.shootTimer - 1);
             let playerShootingDirectionForGFX: Position | undefined = undefined;
             if (newTutorialEntities.enemies.length > 0) {
@@ -491,7 +492,7 @@ export const useGameLogic = (
                         closestEnemyToPlayer = enemy;
                     }
                 });
-                
+
                 if (closestEnemyToPlayer && minDistToPlayer <= newPlayer.range) {
                     playerShootingDirectionForGFX = normalizeVector({ x: getCenter(closestEnemyToPlayer).x - getCenter(newPlayer).x, y: getCenter(closestEnemyToPlayer).y - getCenter(newPlayer).y });
                 }
@@ -508,10 +509,10 @@ export const useGameLogic = (
                         damage: newPlayer.damage, ownerId: newPlayer.id, isPlayerProjectile: true, color: UI_STROKE_PRIMARY, causesShake: false,
                     });
                     newPlayer.ammoLeftInClip--;
-                    newPlayer.shootTimer = newPlayer.shootCooldown; 
+                    newPlayer.shootTimer = newPlayer.shootCooldown;
                     newPlayer.lastShootingDirection = { ...playerShootingDirectionForGFX };
 
-                    if (newPlayer.ammoLeftInClip === 0 && newPlayer.reloadDuration) { 
+                    if (newPlayer.ammoLeftInClip === 0 && newPlayer.reloadDuration) {
                         newPlayer.currentReloadTimer = newPlayer.reloadDuration;
                     }
                  }
@@ -519,11 +520,11 @@ export const useGameLogic = (
              if (newPlayer.currentReloadTimer && newPlayer.currentReloadTimer > 0) {
                 newPlayer.currentReloadTimer = Math.max(0, newPlayer.currentReloadTimer - 1);
                 if (newPlayer.currentReloadTimer === 0 && newPlayer.clipSize) {
-                    newPlayer.ammoLeftInClip = newPlayer.clipSize; 
+                    newPlayer.ammoLeftInClip = newPlayer.clipSize;
                 }
             }
         } else { // If shooting is not allowed (e.g., HUD steps or step 0)
-            newPlayer.velocity = newPlayer.lastShootingDirection || { x: 1, y: 0 }; 
+            newPlayer.velocity = newPlayer.lastShootingDirection || { x: 1, y: 0 };
         }
         if (newPlayer.playerHitTimer > 0) newPlayer.playerHitTimer = Math.max(0, newPlayer.playerHitTimer -1);
 
@@ -567,7 +568,7 @@ export const useGameLogic = (
                 const leaderActualCenter = getCenter(leader);
                 let tentativeAllyCenter = getCenter(currentAlly);
                 const distToLeaderCenter = distanceBetweenPoints(tentativeAllyCenter, leaderActualCenter);
-                const minSeparationDistance = (leader.width / 2) + (currentAlly.width / 2) + 5; 
+                const minSeparationDistance = (leader.width / 2) + (currentAlly.width / 2) + 5;
                 if (distToLeaderCenter < minSeparationDistance && distToLeaderCenter > 0.01) {
                     const vecFromLeaderToAllyX = tentativeAllyCenter.x - leaderActualCenter.x; const vecFromLeaderToAllyY = tentativeAllyCenter.y - leaderActualCenter.y;
                     const scaledVecX = (vecFromLeaderToAllyX / distToLeaderCenter) * minSeparationDistance; const scaledVecY = (vecFromLeaderToAllyY / distToLeaderCenter) * minSeparationDistance;
@@ -577,7 +578,7 @@ export const useGameLogic = (
             }
             currentAlly.x = Math.max(PLAYER_WORLD_EDGE_MARGIN, Math.min(currentAlly.x, worldArea.width - currentAlly.width - PLAYER_WORLD_EDGE_MARGIN));
             currentAlly.y = Math.max(PLAYER_WORLD_EDGE_MARGIN, Math.min(currentAlly.y, worldArea.height - currentAlly.height - PLAYER_WORLD_EDGE_MARGIN));
-            
+
             let allyShootingDirectionForGFX: Position | undefined = undefined;
              if (newTutorialEntities.enemies.length > 0 && isShootingAllowedStep) { // Allies also respect shooting rules
                 let closestEnemyToAlly: Enemy | null = null;
@@ -595,13 +596,13 @@ export const useGameLogic = (
             if (currentAlly.shootTimer === 0 && allyShootingDirectionForGFX) {
                 const allyCenterForShot = getCenter(currentAlly);
                 const isAllyGunGuy = currentAlly.allyType === AllyType.GUN_GUY;
-                 if (isAllyGunGuy) { 
+                 if (isAllyGunGuy) {
                     if (currentAlly.currentReloadTimer === 0 && currentAlly.ammoLeftInClip && currentAlly.ammoLeftInClip > 0) {
                          newProjectilesCreatedThisTick.push({ id: uuidv4(), x: allyCenterForShot.x - PROJECTILE_SIZE.width / 2, y: allyCenterForShot.y - PROJECTILE_SIZE.height / 2, width: PROJECTILE_SIZE.width, height: PROJECTILE_SIZE.height, velocity: { x: allyShootingDirectionForGFX.x * PLAYER_ALLY_PROJECTILE_SPEED, y: allyShootingDirectionForGFX.y * PLAYER_ALLY_PROJECTILE_SPEED }, damage: currentAlly.damage, ownerId: currentAlly.id, isPlayerProjectile: true, color: UI_STROKE_PRIMARY, causesShake: false });
                         currentAlly.ammoLeftInClip--; currentAlly.shootTimer = currentAlly.shootCooldown; currentAlly.lastShootingDirection = { ...allyShootingDirectionForGFX };
                         if (currentAlly.ammoLeftInClip === 0 && currentAlly.reloadDuration) currentAlly.currentReloadTimer = currentAlly.reloadDuration;
                     }
-                } else { 
+                } else {
                     newProjectilesCreatedThisTick.push({ id: uuidv4(), x: allyCenterForShot.x - PROJECTILE_SIZE.width / 2, y: allyCenterForShot.y - PROJECTILE_SIZE.height / 2, width: PROJECTILE_SIZE.width, height: PROJECTILE_SIZE.height, velocity: { x: allyShootingDirectionForGFX.x * (currentAlly.projectileSpeed || PLAYER_ALLY_PROJECTILE_SPEED), y: allyShootingDirectionForGFX.y * (currentAlly.projectileSpeed || PLAYER_ALLY_PROJECTILE_SPEED) }, damage: currentAlly.damage, ownerId: currentAlly.id, isPlayerProjectile: true, color: UI_STROKE_PRIMARY, causesShake: false, });
                     currentAlly.shootTimer = currentAlly.shootCooldown; currentAlly.lastShootingDirection = { ...allyShootingDirectionForGFX };
                 }
@@ -690,7 +691,7 @@ export const useGameLogic = (
         newTutorialEntities.enemies.forEach(enemyConfig => {
             let currentEnemy = {...enemyConfig};
             currentEnemy.attackTimer = Math.max(0, currentEnemy.attackTimer - 1);
-            const targetCharacter: Character = newPlayer; 
+            const targetCharacter: Character = newPlayer;
             const targetCenter = getCenter(targetCharacter); const enemyCenter = getCenter(currentEnemy);
             const directionToTarget = normalizeVector({ x: targetCenter.x - enemyCenter.x, y: targetCenter.y - enemyCenter.y });
             const distToTarget = distanceBetweenGameObjects(currentEnemy, targetCharacter);
@@ -701,7 +702,7 @@ export const useGameLogic = (
                 currentEnemy.y = Math.max(0, Math.min(currentEnemy.y, worldArea.height - currentEnemy.height));
             }
             if (currentEnemy.attackDamage > 0 && currentEnemy.attackTimer === 0 && distToTarget <= currentEnemy.attackRange) {
-                if (targetCharacter.id === newPlayer.id && newPlayer.health > 0) { 
+                if (targetCharacter.id === newPlayer.id && newPlayer.health > 0) {
                     newPlayer.health -= currentEnemy.attackDamage;
                     if (newPlayer.health > 0) newPlayer.playerHitTimer = PLAYER_HIT_FLASH_DURATION_TICKS;
                 }
@@ -710,7 +711,7 @@ export const useGameLogic = (
             tutorialEnemiesAfterAI.push(currentEnemy);
         });
         newTutorialEntities.enemies = tutorialEnemiesAfterAI;
-        
+
         // --- TUTORIAL PROJECTILE, ENEMY DAMAGE, AND COLLECTIBLE/COIN LOGIC ---
         let currentListOfProjectiles = [...existingTutorialProjectiles, ...newProjectilesCreatedThisTick];
         const remainingProjectiles: Projectile[] = [];
@@ -746,11 +747,11 @@ export const useGameLogic = (
                         if (currentProj.causesShake) {
                              tempCameraShake = { intensity: currentProj.isAirstrike ? AIRSTRIKE_IMPACT_SHAKE_INTENSITY : RPG_IMPACT_CAMERA_SHAKE_INTENSITY, duration: currentProj.isAirstrike ? AIRSTRIKE_IMPACT_SHAKE_DURATION: RPG_IMPACT_CAMERA_SHAKE_DURATION, timer: currentProj.isAirstrike ? AIRSTRIKE_IMPACT_SHAKE_DURATION : RPG_IMPACT_CAMERA_SHAKE_DURATION };
                         }
-                        break; 
+                        break;
                     }
                 }
             }
-            
+
             if (currentProj.aoeRadius && (projectileRemovedThisTick || (directHitOccurredOnEnemy && currentProj.isPlayerProjectile))) {
                 const impactCenter = currentProj.isAirstrike && currentProj.targetY ? { x: currentProj.x + currentProj.width/2, y: currentProj.targetY } : getCenter(currentProj);
                 tutorialEnemiesAfterDamageAndCoinSpawn.forEach(enemy => {
@@ -768,24 +769,24 @@ export const useGameLogic = (
                 remainingProjectiles.push(currentProj);
             }
         });
-        
+
         newTutorialEntities.enemies = tutorialEnemiesAfterDamageAndCoinSpawn.filter(enemy => {
             if (enemy.health <= 0) {
                 if (tutorialStep === 3 && enemy.points === COIN_VALUE) {
                     newTutorialEntities.coins.push({ id: uuidv4(), x: getCenter(enemy).x - COIN_SIZE.width / 2, y: getCenter(enemy).y - COIN_SIZE.height / 2, width: COIN_SIZE.width, height: COIN_SIZE.height, value: COIN_VALUE, color: UI_STROKE_PRIMARY });
                 }
-                return false; 
+                return false;
             }
-            return true; 
+            return true;
         });
-        
+
         let collectedAllyThisTick: CollectibleAlly | null = null;
         if (tutorialStep === 2) {
             const remainingTutorialCollectibleAllies: CollectibleAlly[] = [];
             for (const ca of newTutorialEntities.collectibleAllies) {
                 if (checkCollision(newPlayer, ca)) {
                     addAllyToPlayer(newPlayer, ca.allyType, 0);
-                    collectedAllyThisTick = ca; 
+                    collectedAllyThisTick = ca;
                 } else {
                     remainingTutorialCollectibleAllies.push(ca);
                 }
@@ -812,8 +813,8 @@ export const useGameLogic = (
             const shakeOffsetX = (Math.random() - 0.5) * 2 * tempCameraShake.intensity;
             const shakeOffsetY = (Math.random() - 0.5) * 2 * tempCameraShake.intensity;
             finalCameraPosForTutorial.x += shakeOffsetX; finalCameraPosForTutorial.y += shakeOffsetY;
-            finalCameraPosForTutorial.x = Math.max(0, Math.min(finalCameraPosForTutorial.x, WORLD_AREA.width - gameArea.width)); 
-            finalCameraPosForTutorial.y = Math.max(0, Math.min(finalCameraPosForTutorial.y, WORLD_AREA.height - gameArea.height)); 
+            finalCameraPosForTutorial.x = Math.max(0, Math.min(finalCameraPosForTutorial.x, WORLD_AREA.width - gameArea.width));
+            finalCameraPosForTutorial.y = Math.max(0, Math.min(finalCameraPosForTutorial.y, WORLD_AREA.height - gameArea.height));
         }
 
         return {
@@ -830,7 +831,7 @@ export const useGameLogic = (
         return prev;
       }
       if (prev.gameStatus === 'TUTORIAL_ACTIVE') {
-         return prev; 
+         return prev;
       }
 
 
@@ -844,10 +845,10 @@ export const useGameLogic = (
         totalEnemiesThisRound: prevTotalEnemies,
         keysPressed, gameArea, mousePosition,
         gameStatus, nextRoundTimer: prevNextRoundTimer, nextAllySpawnTimer: prevNextAllySpawnTimer,
-        unlockedAllyTypes, camera: prevCamera, cameraShake: prevCameraShake, isTouchDevice, 
+        unlockedAllyTypes, camera: prevCamera, cameraShake: prevCameraShake, isTouchDevice,
         specialEnemyState: prevSpecialEnemyState,
-        comboTimer: prevComboTimer, airstrikeAvailable: prevAirstrikeAvailable, 
-        airstrikeActive: prevAirstrikeActive, airstrikesPending: prevAirstrikesPending, 
+        comboTimer: prevComboTimer, airstrikeAvailable: prevAirstrikeAvailable,
+        airstrikeActive: prevAirstrikeActive, airstrikesPending: prevAirstrikesPending,
         airstrikeSpawnTimer: prevAirstrikeSpawnTimer,
         pendingInitialSpawns: prevPendingInitialSpawns, initialSpawnTickCounter: prevInitialSpawnTickCounter,
         logs: prevLogs,
@@ -875,7 +876,7 @@ export const useGameLogic = (
       let newAirstrikeSpawnTimer = prevAirstrikeSpawnTimer;
       let newPendingInitialSpawns = prevPendingInitialSpawns;
       let newInitialSpawnTickCounter = prevInitialSpawnTickCounter;
-      let newLogs = prevLogs.map(l => ({...l})); 
+      let newLogs = prevLogs.map(l => ({...l}));
       let newGameOverPendingTimer = prevGameOverPendingTimer || 0;
       let newWaveTitleTimer = prevWaveTitleTimer;
 
@@ -892,7 +893,7 @@ export const useGameLogic = (
           activeCameraShake = { ...activeCameraShake, timer: updatedTimer };
         }
       }
-      
+
       if (newPlayer.playerHitTimer > 0) {
         newPlayer.playerHitTimer = Math.max(0, newPlayer.playerHitTimer - 1);
       }
@@ -921,7 +922,7 @@ export const useGameLogic = (
           }
           isPlayerInteractive = false;
         }
-        
+
         // Combo Timer Update (only if player is alive and playing)
         if (isPlayerInteractive && newComboTimer > 0) {
           newComboTimer = Math.max(0, newComboTimer - 1);
@@ -932,7 +933,7 @@ export const useGameLogic = (
         } else if (isPlayerInteractive && newComboTimer === 0) {
             newPlayer.comboCount = 0;
         }
-        
+
         // Airstrike Logic (only if player is alive and playing)
         if (isPlayerInteractive && newAirstrikeActive) {
           if (newAirstrikeSpawnTimer > 0) {
@@ -940,8 +941,8 @@ export const useGameLogic = (
           }
           if (newAirstrikeSpawnTimer === 0 && newAirstrikesPending > 0) {
             const spawnX = newBaseCamera.x + Math.random() * gameArea.width;
-            const targetY = newBaseCamera.y + gameArea.height * (0.8 + Math.random() * 0.3); 
-            const spawnY = newBaseCamera.y - AIRSTRIKE_PROJECTILE_SIZE.height; 
+            const targetY = newBaseCamera.y + gameArea.height * (0.8 + Math.random() * 0.3);
+            const spawnY = newBaseCamera.y - AIRSTRIKE_PROJECTILE_SIZE.height;
             const travelDistanceToTarget = targetY - spawnY;
 
             newProjectilesCreatedThisTick.push({
@@ -996,7 +997,7 @@ export const useGameLogic = (
                 } else { dx = keyDx; dy = keyDy; }
             }
         }
-        
+
         // Player GFX direction (even if not interactive, for consistent facing)
         let playerShootingDirectionForGFX: Position | undefined = undefined;
         if (currentEnemies.length > 0) {
@@ -1024,7 +1025,7 @@ export const useGameLogic = (
             if (isPlayerGunGuy && newPlayer.currentReloadTimer && newPlayer.currentReloadTimer > 0) {
                 newPlayer.currentReloadTimer = Math.max(0, newPlayer.currentReloadTimer - 1);
                 if (newPlayer.currentReloadTimer === 0 && newPlayer.clipSize) {
-                    newPlayer.ammoLeftInClip = newPlayer.clipSize; 
+                    newPlayer.ammoLeftInClip = newPlayer.clipSize;
                 }
             }
             newPlayer.shootTimer = Math.max(0, newPlayer.shootTimer - 1);
@@ -1042,14 +1043,14 @@ export const useGameLogic = (
                             color: UI_STROKE_PRIMARY, causesShake: false,
                         });
                         newPlayer.ammoLeftInClip--;
-                        newPlayer.shootTimer = newPlayer.shootCooldown; 
+                        newPlayer.shootTimer = newPlayer.shootCooldown;
                         newPlayer.lastShootingDirection = { ...playerShootingDirectionForGFX };
 
-                        if (newPlayer.ammoLeftInClip === 0 && newPlayer.reloadDuration) { 
+                        if (newPlayer.ammoLeftInClip === 0 && newPlayer.reloadDuration) {
                             newPlayer.currentReloadTimer = newPlayer.reloadDuration;
                         }
                     }
-                } else { 
+                } else {
                     const championType = newPlayer.championType;
                     let projectileCount = 1; let projectileSpread = 0; let projectileSpeedMultiplier = 1.0;
                     let projectileWidth = PROJECTILE_SIZE.width; let projectileHeight = PROJECTILE_SIZE.height;
@@ -1109,8 +1110,8 @@ export const useGameLogic = (
         const idealCameraY = newPlayer.y + newPlayer.height / 2 - gameArea.height / 2;
         newBaseCamera.x += (idealCameraX - newBaseCamera.x) * CAMERA_LERP_FACTOR;
         newBaseCamera.y += (idealCameraY - newBaseCamera.y) * CAMERA_LERP_FACTOR;
-        newBaseCamera.x = Math.max(0, Math.min(newBaseCamera.x, WORLD_AREA.width - gameArea.width)); 
-        newBaseCamera.y = Math.max(0, Math.min(newBaseCamera.y, WORLD_AREA.height - gameArea.height)); 
+        newBaseCamera.x = Math.max(0, Math.min(newBaseCamera.x, WORLD_AREA.width - gameArea.width));
+        newBaseCamera.y = Math.max(0, Math.min(newBaseCamera.y, WORLD_AREA.height - gameArea.height));
 
         const remainingCoins: Coin[] = [];
         const playerCenterForCoins = getCenter(newPlayer);
@@ -1120,7 +1121,7 @@ export const useGameLogic = (
           const distanceToCoin = distanceBetweenPoints(playerCenterForCoins, coinCenter);
           if (checkCollision(newPlayer, coin)) {
             newPlayer.coins += coin.value;
-            newPlayer.currentRunCoinsEarned += coin.value; 
+            newPlayer.currentRunCoinsEarned += coin.value;
             collected = true;
           } else if (distanceToCoin < newPlayer.coinMagnetRange) {
             if (distanceToCoin > COIN_MIN_ATTRACTION_DIST_FOR_MOVEMENT) {
@@ -1135,7 +1136,7 @@ export const useGameLogic = (
                 }
             } else {
                 newPlayer.coins += coin.value;
-                newPlayer.currentRunCoinsEarned += coin.value; 
+                newPlayer.currentRunCoinsEarned += coin.value;
                 collected = true;
             }
           }
@@ -1202,15 +1203,15 @@ export const useGameLogic = (
           let allyShootingDirectionForGFX: Position | undefined = undefined;
 
           if (currentEnemies.length > 0) {
-            let closestEnemyToAlly: Enemy | null = null; 
+            let closestEnemyToAlly: Enemy | null = null;
             let distToClosestAllyTarget = Infinity;
             currentEnemies.forEach(enemy => {
               const canAllyTarget = currentAlly.allyType === AllyType.SNIPER || isGameObjectOnScreen(enemy, newBaseCamera, gameArea);
               if (canAllyTarget) {
                   const dist = distanceBetweenPoints(getCenter(currentAlly), getCenter(enemy));
-                  if (dist < distToClosestAllyTarget) { 
-                    distToClosestAllyTarget = dist; 
-                    closestEnemyToAlly = enemy; 
+                  if (dist < distToClosestAllyTarget) {
+                    distToClosestAllyTarget = dist;
+                    closestEnemyToAlly = enemy;
                   }
               }
             });
@@ -1242,7 +1243,7 @@ export const useGameLogic = (
                             damage: currentAlly.damage, ownerId: currentAlly.id, isPlayerProjectile: true, color: UI_STROKE_PRIMARY, causesShake: false
                         });
                         currentAlly.ammoLeftInClip--;
-                        currentAlly.shootTimer = currentAlly.shootCooldown; 
+                        currentAlly.shootTimer = currentAlly.shootCooldown;
                         currentAlly.lastShootingDirection = { ...allyShootingDirectionForGFX };
                         allyShotFiredThisTick = true;
 
@@ -1250,7 +1251,7 @@ export const useGameLogic = (
                             currentAlly.currentReloadTimer = currentAlly.reloadDuration;
                         }
                     }
-                } else { 
+                } else {
                     let projectileWidth = PROJECTILE_SIZE.width; let projectileHeight = PROJECTILE_SIZE.height; let causesShake = false;
                     let projectileSpeed = currentAlly.projectileSpeed || PLAYER_ALLY_PROJECTILE_SPEED; let maxTravel: number | undefined = undefined;
                     let projectileAoeRadius: number | undefined = undefined;
@@ -1296,7 +1297,7 @@ export const useGameLogic = (
 
         const remainingCollectibleAllies: CollectibleAlly[] = [];
         currentCollectibleAllies.forEach(collectible => {
-          if (isPlayerInteractive && checkCollision(newPlayer, collectible)) addAllyToPlayer(newPlayer, collectible.allyType, prev.round); 
+          if (isPlayerInteractive && checkCollision(newPlayer, collectible)) addAllyToPlayer(newPlayer, collectible.allyType, prev.round);
           else remainingCollectibleAllies.push(collectible);
         });
         currentCollectibleAllies = remainingCollectibleAllies;
@@ -1310,7 +1311,7 @@ export const useGameLogic = (
           // If player is dead (health <=0), enemies might retarget or stop. For now, they still target player's last known state conceptually.
           // Allies are still valid targets.
           let minDistToTarget = distanceBetweenGameObjects(currentEnemy, newPlayer); // Distance to player (even if dead)
-          
+
           newPlayer.allies.forEach(ally => { // Iterate through ALIVE allies
             const distToAlly = distanceBetweenGameObjects(currentEnemy, ally);
             if (distToAlly < minDistToTarget) { minDistToTarget = distToAlly; target = ally; }
@@ -1331,13 +1332,13 @@ export const useGameLogic = (
           currentEnemy.x = Math.max(-currentEnemy.width, Math.min(currentEnemy.x, WORLD_AREA.width));
           currentEnemy.y = Math.max(-currentEnemy.height, Math.min(currentEnemy.y, WORLD_AREA.height));
           if (currentEnemy.attackTimer === 0 && distToActualTarget <= currentEnemy.attackRange) {
-            if (currentEnemy.enemyType === EnemyType.MELEE_GRUNT || currentEnemy.enemyType === EnemyType.AGILE_STALKER) { 
+            if (currentEnemy.enemyType === EnemyType.MELEE_GRUNT || currentEnemy.enemyType === EnemyType.AGILE_STALKER) {
                 if (target.id === newPlayer.id && newPlayer.health > 0) {
                     newPlayer.health -= currentEnemy.attackDamage;
                     if (newPlayer.health > 0) newPlayer.playerHitTimer = PLAYER_HIT_FLASH_DURATION_TICKS;
                 }
-                else if (target.id !== newPlayer.id) newPlayer.allies = newPlayer.allies.map(a => a.id === target!.id ? {...a, health: 0} : a); 
-                currentEnemy.attackTimer = currentEnemy.attackCooldown; 
+                else if (target.id !== newPlayer.id) newPlayer.allies = newPlayer.allies.map(a => a.id === target!.id ? {...a, health: 0} : a);
+                currentEnemy.attackTimer = currentEnemy.attackCooldown;
             }
             else if (currentEnemy.enemyType === EnemyType.RANGED_SHOOTER || currentEnemy.enemyType === EnemyType.ENEMY_SNIPER) { if (isGameObjectOnScreen(target, newBaseCamera, gameArea)) { newProjectilesCreatedThisTick.push({ id: uuidv4(), x: enemyCenter.x - PROJECTILE_SIZE.width / 2, y: enemyCenter.y - PROJECTILE_SIZE.height / 2, width: PROJECTILE_SIZE.width, height: PROJECTILE_SIZE.height, velocity: { x: directionToTarget.x * ENEMY_PROJECTILE_SPEED, y: directionToTarget.y * ENEMY_PROJECTILE_SPEED }, damage: currentEnemy.attackDamage, ownerId: currentEnemy.id, isPlayerProjectile: false, color: UI_ACCENT_CRITICAL, causesShake: false }); currentEnemy.attackTimer = currentEnemy.attackCooldown; } }
             else if (currentEnemy.enemyType === EnemyType.ROCKET_TANK) { if (isGameObjectOnScreen(target, newBaseCamera, gameArea)) { newProjectilesCreatedThisTick.push({ id: uuidv4(), x: enemyCenter.x - RPG_PROJECTILE_SIZE.width / 2, y: enemyCenter.y - RPG_PROJECTILE_SIZE.height / 2, width: RPG_PROJECTILE_SIZE.width, height: RPG_PROJECTILE_SIZE.height, velocity: { x: directionToTarget.x * ENEMY_ROCKET_TANK_PROJECTILE_SPEED, y: directionToTarget.y * ENEMY_ROCKET_TANK_PROJECTILE_SPEED }, damage: currentEnemy.attackDamage, ownerId: currentEnemy.id, isPlayerProjectile: false, color: UI_ACCENT_CRITICAL, causesShake: true, aoeRadius: ENEMY_ROCKET_TANK_AOE_RADIUS }); currentEnemy.attackTimer = currentEnemy.attackCooldown; } }
@@ -1370,16 +1371,16 @@ export const useGameLogic = (
             const distanceMovedThisTick = Math.sqrt(currentProj.velocity.x ** 2 + currentProj.velocity.y ** 2);
             currentProj.distanceTraveled += distanceMovedThisTick;
             if (currentProj.distanceTraveled >= currentProj.maxTravelDistance) {
-              projectileRemovedThisTick = true; 
+              projectileRemovedThisTick = true;
               if (currentProj.isAirstrike && currentProj.aoeRadius) {
                 projectilesToExplodeAoE.push({ projectile: currentProj, impactCenter: getCenter(currentProj) });
                 if (currentProj.causesShake) activeCameraShake = { intensity: AIRSTRIKE_IMPACT_SHAKE_INTENSITY, duration: AIRSTRIKE_IMPACT_SHAKE_DURATION, timer: AIRSTRIKE_IMPACT_SHAKE_DURATION };
               }
             }
           }
-          
+
           if (!projectileRemovedThisTick && (currentProj.x + currentProj.width < -50 || currentProj.x > WORLD_AREA.width + 50 || currentProj.y + currentProj.height < -50 || currentProj.y > WORLD_AREA.height + 50)) {
-            projectileRemovedThisTick = true; 
+            projectileRemovedThisTick = true;
           }
 
           if (!projectileRemovedThisTick) {
@@ -1387,13 +1388,13 @@ export const useGameLogic = (
               currentEnemies = currentEnemies.filter(enemy => {
                 if (checkCollision(currentProj, enemy)) {
                   enemy.health -= currentProj.damage;
-                  projectileRemovedThisTick = true; 
+                  projectileRemovedThisTick = true;
                   if (currentProj.causesShake) {
                     const shakeIntensity = currentProj.isAirstrike ? AIRSTRIKE_IMPACT_SHAKE_INTENSITY : RPG_IMPACT_CAMERA_SHAKE_INTENSITY;
                     const shakeDuration = currentProj.isAirstrike ? AIRSTRIKE_IMPACT_SHAKE_DURATION : RPG_IMPACT_CAMERA_SHAKE_DURATION;
                     activeCameraShake = { intensity: shakeIntensity, duration: shakeDuration, timer: shakeDuration };
                   }
-                  if (currentProj.aoeRadius) { 
+                  if (currentProj.aoeRadius) {
                     projectilesToExplodeAoE.push({ projectile: currentProj, impactCenter: getCenter(enemy) });
                   }
                   if (enemy.health <= 0) {
@@ -1408,12 +1409,12 @@ export const useGameLogic = (
                         const baseCoins = Math.ceil(enemy.points / COIN_VALUE); const randomCoins = 1 + Math.floor(Math.random()*3);
                         for (let i=0; i < baseCoins + randomCoins; i++) { currentCoins.push({ id: uuidv4(), x: getCenter(enemy).x - COIN_SIZE.width/2 + (Math.random()-0.5)*enemy.width*1.5, y: getCenter(enemy).y - COIN_SIZE.height/2 + (Math.random()-0.5)*enemy.height*1.5, width:COIN_SIZE.width, height:COIN_SIZE.height,value:COIN_VALUE, color:UI_STROKE_PRIMARY});}
                     }
-                    return false; 
+                    return false;
                   }
                 }
-                return true; 
+                return true;
               });
-            } else { 
+            } else {
               if (newPlayer.health > 0 && checkCollision(currentProj, newPlayer)) { // Player can only take damage if alive
                 newPlayer.health -= currentProj.damage; projectileRemovedThisTick = true;
                 if (newPlayer.health > 0) newPlayer.playerHitTimer = PLAYER_HIT_FLASH_DURATION_TICKS;
@@ -1422,7 +1423,7 @@ export const useGameLogic = (
               }
               newPlayer.allies.forEach(ally => {
                 if (!projectileRemovedThisTick && checkCollision(currentProj, ally)) {
-                  ally.health = 0; projectileRemovedThisTick = true; 
+                  ally.health = 0; projectileRemovedThisTick = true;
                   if (currentProj.causesShake) activeCameraShake = { intensity: RPG_IMPACT_CAMERA_SHAKE_INTENSITY, duration: RPG_IMPACT_CAMERA_SHAKE_DURATION, timer: RPG_IMPACT_CAMERA_SHAKE_DURATION };
                   if (currentProj.aoeRadius) projectilesToExplodeAoE.push({ projectile: currentProj, impactCenter: getCenter(ally) });
                 }
@@ -1434,12 +1435,12 @@ export const useGameLogic = (
             remainingProjectiles.push(currentProj);
           }
         });
-        
+
         projectilesToExplodeAoE.forEach(({ projectile: explodingProj, impactCenter }) => {
           currentEnemies = currentEnemies.filter(enemy => {
             const distToImpact = distanceBetweenPoints(getCenter(enemy), impactCenter);
             if (distToImpact <= explodingProj.aoeRadius) {
-              enemy.health -= explodingProj.damage; 
+              enemy.health -= explodingProj.damage;
               if (enemy.health <= 0) {
                  if (isPlayerInteractive) { // Only grant rewards if player is active
                     newPlayer.kills++; newPlayer.currentRunKills++;
@@ -1452,10 +1453,10 @@ export const useGameLogic = (
                     const baseCoins = Math.ceil(enemy.points / COIN_VALUE); const randomCoins = 1 + Math.floor(Math.random()*3);
                     for (let i=0; i < baseCoins + randomCoins; i++) { currentCoins.push({ id: uuidv4(), x: getCenter(enemy).x - COIN_SIZE.width/2 + (Math.random()-0.5)*enemy.width*1.5, y: getCenter(enemy).y - COIN_SIZE.height/2 + (Math.random()-0.5)*enemy.height*1.5, width:COIN_SIZE.width, height:COIN_SIZE.height,value:COIN_VALUE, color:UI_STROKE_PRIMARY});}
                  }
-                return false; 
+                return false;
               }
             }
-            return true; 
+            return true;
           });
         });
 
@@ -1473,27 +1474,31 @@ export const useGameLogic = (
             INITIAL_LOG_DEFINITIONS.forEach(logDef => {
                 const logEntry = newLogs.find(l => l.id === logDef.id);
                 if (logEntry && !logEntry.isUnlocked) {
-                    if (logDef.condition(newPlayer, currentEnemies)) { 
+                    if (logDef.condition(newPlayer, currentEnemies)) {
                         logEntry.isUnlocked = true;
                     }
                 }
             });
         }
-        
-        if (!isCountingDownForNextWave && updatedKilledEnemiesThisRound >= prevTotalEnemies && currentEnemies.length === 0 && gameStatus === 'PLAYING') { // Only trigger next wave if playing
-          newNextRoundTimer = 5; isCountingDownForNextWave = true; 
+
+        if (!isCountingDownForNextWave && updatedKilledEnemiesThisRound >= prevTotalEnemies && currentEnemies.length === 0 && gameStatus === 'PLAYING') {
+          newNextRoundTimer = 5; isCountingDownForNextWave = true;
+          newPlayer.highestRoundAchievedThisRun = Math.max(newPlayer.highestRoundAchievedThisRun || 0, round);
         }
         if (isCountingDownForNextWave) {
             newNextRoundTimer = Math.max(0, newNextRoundTimer - deltaTimeSeconds);
-            if (newNextRoundTimer <= 0) { 
-              const nextRoundNumber = round + 1; 
-              startNewRound(newPlayer, nextRoundNumber, prev); 
-              lastTickTimeRef.current = performance.now(); 
-              return prev; // Return previous state to avoid processing this tick further with new round data
+            if (newNextRoundTimer <= 0) {
+              const nextRoundNumber = round + 1;
+              startNewRound(newPlayer, nextRoundNumber, prev);
+              lastTickTimeRef.current = performance.now(); // Ensure tick time is reset for the state update caused by startNewRound
+              // No longer returning prev; allow gameTick to complete its state update.
+              // startNewRound will schedule its own state update which should correctly
+              // transition to the next round. The current tick will finish processing
+              // the end of the current round, and nextRoundTimer will be 0.
             }
         }
 
-        if (!isCountingDownForNextWave && gameStatus === 'PLAYING') { // Only spawn enemies if playing
+        if (!isCountingDownForNextWave && gameStatus === 'PLAYING') {
             if (newPendingInitialSpawns > 0) {
               newInitialSpawnTickCounter--;
               if (newInitialSpawnTickCounter <= 0) {
@@ -1507,7 +1512,7 @@ export const useGameLogic = (
                      newInitialSpawnTickCounter = INITIAL_SPAWN_INTERVAL_TICKS;
                   }
                 } else {
-                  newInitialSpawnTickCounter = Math.min(5, INITIAL_SPAWN_INTERVAL_TICKS / 2); 
+                  newInitialSpawnTickCounter = Math.min(5, INITIAL_SPAWN_INTERVAL_TICKS / 2);
                 }
               }
             }
@@ -1517,26 +1522,26 @@ export const useGameLogic = (
 
 
             if (newPendingInitialSpawns === 0 && currentEnemies.length < maxConcurrentEnemies && enemiesToSpawnForMidRound > 0) {
-               if (Math.random() < 0.045) { 
+               if (Math.random() < 0.045) {
                  const typeToSpawn = determineNextEnemyType(round, currentEnemies, newSpecialEnemyState);
                  if (typeToSpawn) {
-                    const newEnemy = createNewEnemy(round, prev.worldArea, typeToSpawn); 
-                    currentEnemies.push(newEnemy); 
+                    const newEnemy = createNewEnemy(round, prev.worldArea, typeToSpawn);
+                    currentEnemies.push(newEnemy);
                     if (SPECIAL_ENEMY_TYPES.includes(typeToSpawn)) newSpecialEnemyState.lastSpecialTypeSpawnedThisWave = typeToSpawn;
                  }
                }
             }
         }
-      } else { // Not PLAYING or GAME_OVER_PENDING
+      } else {
         processedProjectilesForThisTick = [];
       }
 
-      if (newNextAllySpawnTimer <= 0 && (gameStatus === 'PLAYING' || gameStatus === 'GAME_OVER_PENDING')) { // Allow ally spawn during pending
+      if (newNextAllySpawnTimer <= 0 && (gameStatus === 'PLAYING' || gameStatus === 'GAME_OVER_PENDING')) {
         newNextAllySpawnTimer = ALLY_SPAWN_INTERVAL;
         if (unlockedAllyTypes.length > 0) {
             const availableForSpawn = unlockedAllyTypes.filter(type => type !== AllyType.GUN_GUY || unlockedAllyTypes.length === 1);
             const typeToSpawn = availableForSpawn.length > 0 ? availableForSpawn[Math.floor(Math.random() * availableForSpawn.length)] : unlockedAllyTypes[0];
-            const newCollectible = createCollectibleAlly(typeToSpawn, newPlayer, currentCollectibleAllies, prev.worldArea); 
+            const newCollectible = createCollectibleAlly(typeToSpawn, newPlayer, currentCollectibleAllies, prev.worldArea);
             if (newCollectible) currentCollectibleAllies.push(newCollectible);
         }
       }
@@ -1546,8 +1551,8 @@ export const useGameLogic = (
         const shakeOffsetX = (Math.random() - 0.5) * 2 * activeCameraShake.intensity;
         const shakeOffsetY = (Math.random() - 0.5) * 2 * activeCameraShake.intensity;
         finalCameraPos.x += shakeOffsetX; finalCameraPos.y += shakeOffsetY;
-        finalCameraPos.x = Math.max(0, Math.min(finalCameraPos.x, WORLD_AREA.width - gameArea.width)); 
-        finalCameraPos.y = Math.max(0, Math.min(finalCameraPos.y, WORLD_AREA.height - gameArea.height)); 
+        finalCameraPos.x = Math.max(0, Math.min(finalCameraPos.x, WORLD_AREA.width - gameArea.width));
+        finalCameraPos.y = Math.max(0, Math.min(finalCameraPos.y, WORLD_AREA.height - gameArea.height));
       }
 
       return {
@@ -1573,7 +1578,7 @@ export const useGameLogic = (
         initialSpawnTickCounter: newInitialSpawnTickCounter,
         logs: newLogs,
         gameOverPendingTimer: newGameOverPendingTimer,
-        waveTitleText: prevWaveTitleText, 
+        waveTitleText: prevWaveTitleText,
         waveTitleTimer: newWaveTitleTimer,
       };
     });
@@ -1613,7 +1618,7 @@ export const useGameLogic = (
     };
   };
 
-  const addAllyToPlayer = (playerState: Player, allyType: AllyType, currentRound: number) => { 
+  const addAllyToPlayer = (playerState: Player, allyType: AllyType, currentRound: number) => {
     let newAllyBase: Omit<Ally, 'id' | 'x' | 'y' | 'targetId' | 'leaderId' | 'pathHistory' | 'color' | 'lastShootingDirection' | 'ammoLeftInClip' | 'clipSize' | 'reloadDuration' | 'currentReloadTimer'> & Partial<Pick<Ally, 'ammoLeftInClip' | 'clipSize' | 'reloadDuration' | 'currentReloadTimer'>> = {
         allyType: allyType,
         width: ALLY_SIZE.width, height: ALLY_SIZE.height,
@@ -1624,7 +1629,7 @@ export const useGameLogic = (
     switch (allyType) {
         case AllyType.GUN_GUY:
             newAllyBase = {
-                ...newAllyBase, damage: ALLY_GUN_GUY_DAMAGE, range: ALLY_GUN_GUY_RANGE, shootCooldown: ALLY_GUN_GUY_COOLDOWN, 
+                ...newAllyBase, damage: ALLY_GUN_GUY_DAMAGE, range: ALLY_GUN_GUY_RANGE, shootCooldown: ALLY_GUN_GUY_COOLDOWN,
                 clipSize: GUN_GUY_CLIP_SIZE, ammoLeftInClip: GUN_GUY_CLIP_SIZE,
                 reloadDuration: GUN_GUY_RELOAD_TIME, currentReloadTimer: 0,
             };
@@ -1643,7 +1648,7 @@ export const useGameLogic = (
     spawnX = Math.max(PLAYER_WORLD_EDGE_MARGIN, Math.min(spawnX, WORLD_AREA.width - ALLY_SIZE.width - PLAYER_WORLD_EDGE_MARGIN));
     spawnY = Math.max(PLAYER_WORLD_EDGE_MARGIN, Math.min(spawnY, WORLD_AREA.height - ALLY_SIZE.height - PLAYER_WORLD_EDGE_MARGIN));
     const newAlly: Ally = {
-        ...(newAllyBase as Ally), 
+        ...(newAllyBase as Ally),
         id: uuidv4(), x: spawnX, y: spawnY, targetId: null,
         leaderId: leader.id, pathHistory: [], color: UI_STROKE_PRIMARY,
         lastShootingDirection: { x: 1, y: 0 },
@@ -1656,29 +1661,30 @@ export const useGameLogic = (
   const confirmChampionSelection = useCallback((choiceId: ChampionChoice['id']) => {
     setGameState(prev => {
         let newPlayer: Player = {
-            ...INITIAL_PLAYER_STATE, 
+            ...INITIAL_PLAYER_STATE,
             currentRunKills: 0,
             currentRunTanksDestroyed: 0,
             currentRunCoinsEarned: 0,
-            kills: 0, 
+            kills: 0,
             coins: PLAYER_INITIAL_COINS, // Reset coins to initial for Champion Select -> Shop
             allies: [], pathHistory: [], color: UI_STROKE_PRIMARY, lastShootingDirection: {x:1, y:0},
             initialAllyBonus: 0, comboCount: 0, playerHitTimer: 0,
-            highestComboCount: 0, // Reset for new champion/session
-            maxSquadSizeAchieved: 0, // Reset for new champion/session
+            highestComboCount: 0,
+            maxSquadSizeAchieved: 0,
+            highestRoundAchievedThisRun: 0, // Reset
             x: Math.max(PLAYER_WORLD_EDGE_MARGIN, Math.min(INITIAL_PLAYER_STATE.x, WORLD_AREA.width - INITIAL_PLAYER_STATE.width - PLAYER_WORLD_EDGE_MARGIN)),
             y: Math.max(PLAYER_WORLD_EDGE_MARGIN, Math.min(INITIAL_PLAYER_STATE.y, WORLD_AREA.height - INITIAL_PLAYER_STATE.height - PLAYER_WORLD_EDGE_MARGIN)),
-            airstrikeAvailable: false, airstrikeActive: false, airstrikesPending: 0, airstrikeSpawnTimer: 0, // Reset airstrike for new champion
+            airstrikeAvailable: false, airstrikeActive: false, airstrikesPending: 0, airstrikeSpawnTimer: 0,
         };
         let championSpecificType: AllyType | undefined = undefined;
         let currentUnlockedAllyTypes: AllyType[] = [AllyType.SHOTGUN, AllyType.RIFLEMAN, AllyType.GUN_GUY];
 
 
         if (choiceId === 'GUN_GUY') {
-            newPlayer.championType = undefined; 
+            newPlayer.championType = undefined;
             newPlayer.damage = PLAYER_INITIAL_DAMAGE;
             newPlayer.range = PLAYER_INITIAL_RANGE;
-            newPlayer.shootCooldown = GUN_GUY_SHOT_INTERVAL; 
+            newPlayer.shootCooldown = GUN_GUY_SHOT_INTERVAL;
             newPlayer.clipSize = GUN_GUY_CLIP_SIZE;
             newPlayer.ammoLeftInClip = GUN_GUY_CLIP_SIZE;
             newPlayer.reloadDuration = GUN_GUY_RELOAD_TIME;
@@ -1700,7 +1706,7 @@ export const useGameLogic = (
             }
         }
         const filteredUpgrades = INITIAL_UPGRADES.map(u => ({...u, cost: u.baseCost, currentLevel: 0 })).filter(upgrade => {
-            if (championSpecificType) { 
+            if (championSpecificType) {
                 if (upgrade.id === UpgradeType.UNLOCK_SNIPER_ALLY && championSpecificType === AllyType.SNIPER) return false;
                 if (upgrade.id === UpgradeType.UNLOCK_MINIGUNNER_ALLY && championSpecificType === AllyType.MINIGUNNER) return false;
                 if (upgrade.id === UpgradeType.UNLOCK_RPG_ALLY && championSpecificType === AllyType.RPG_SOLDIER) return false;
@@ -1710,7 +1716,7 @@ export const useGameLogic = (
         });
         const camX = Math.max(0, Math.min(newPlayer.x + newPlayer.width / 2 - prev.gameArea.width / 2, WORLD_AREA.width - prev.gameArea.width));
         const camY = Math.max(0, Math.min(newPlayer.y + newPlayer.height / 2 - prev.gameArea.height / 2, WORLD_AREA.height - prev.gameArea.height));
-        
+
         const newLogs: LogEntry[] = INITIAL_LOG_DEFINITIONS.map(def => ({ ...def, isUnlocked: false }));
 
         return {
@@ -1720,9 +1726,9 @@ export const useGameLogic = (
             cameraShake: null, specialEnemyState: { ...INITIAL_SPECIAL_ENEMY_SPAWN_STATE },
             comboTimer: 0, airstrikeAvailable: false, airstrikeActive: false, airstrikesPending: 0, airstrikeSpawnTimer: 0,
             pendingInitialSpawns: 0, initialSpawnTickCounter: 0,
-            logs: newLogs, 
-            gameOverPendingTimer: 0, // Reset timer
-            waveTitleText: '', waveTitleTimer: 0, // Reset wave title
+            logs: newLogs,
+            gameOverPendingTimer: 0,
+            waveTitleText: '', waveTitleTimer: 0,
         };
     });
   }, []);
@@ -1755,19 +1761,20 @@ export const useGameLogic = (
             x: Math.max(PLAYER_WORLD_EDGE_MARGIN, Math.min(WORLD_AREA.width / 2 - PLAYER_SIZE.width / 2, WORLD_AREA.width - PLAYER_SIZE.width - PLAYER_WORLD_EDGE_MARGIN)),
             y: Math.max(PLAYER_WORLD_EDGE_MARGIN, Math.min(WORLD_AREA.height / 2 - PLAYER_SIZE.height / 2, WORLD_AREA.height - PLAYER_SIZE.height - PLAYER_WORLD_EDGE_MARGIN)),
             allies: [], pathHistory: [], shootTimer: 0,
-            kills: prev.player.kills, 
+            kills: prev.player.kills,
             currentRunKills: 0,
             currentRunTanksDestroyed: 0,
             currentRunCoinsEarned: 0,
-            highestComboCount: 0, 
-            maxSquadSizeAchieved: 0, 
+            highestComboCount: 0,
+            maxSquadSizeAchieved: 0,
+            highestRoundAchievedThisRun: 0, // Reset for new run
             comboCount: 0, playerHitTimer: 0,
             lastShootingDirection: { x: 1, y: 0 },
-            airstrikeAvailable: false, airstrikeActive: false, airstrikesPending: 0, airstrikeSpawnTimer: 0, // Reset airstrike for new run
+            airstrikeAvailable: false, airstrikeActive: false, airstrikesPending: 0, airstrikeSpawnTimer: 0,
         };
-        newPlayerStateForRun.maxSquadSizeAchieved = 1; 
+        newPlayerStateForRun.maxSquadSizeAchieved = 1;
 
-        if (newPlayerStateForRun.championType === undefined && newPlayerStateForRun.clipSize) { 
+        if (newPlayerStateForRun.championType === undefined && newPlayerStateForRun.clipSize) {
             newPlayerStateForRun.ammoLeftInClip = newPlayerStateForRun.clipSize;
             newPlayerStateForRun.currentReloadTimer = 0;
         }
@@ -1807,7 +1814,7 @@ export const useGameLogic = (
             if (collectible) initialCollectibleList.push(collectible);
         }
         const newLogsForRun = prev.logs.map(l => ({ ...l, isUnlocked: false }));
-        INITIAL_LOG_DEFINITIONS.forEach(def => { 
+        INITIAL_LOG_DEFINITIONS.forEach(def => {
             const logEntry = newLogsForRun.find(l => l.id === def.id);
             if (logEntry && !logEntry.isUnlocked && def.condition(newPlayerStateForRun, [])) {
                 logEntry.isUnlocked = true;
@@ -1815,14 +1822,14 @@ export const useGameLogic = (
         });
 
         return {
-            ...prev, gameStatus: 'INIT_NEW_RUN', player: newPlayerStateForRun, round: 1, enemies: [], projectiles: [], 
+            ...prev, gameStatus: 'INIT_NEW_RUN', player: newPlayerStateForRun, round: 1, enemies: [], projectiles: [],
             collectibleAllies: initialCollectibleList, nextAllySpawnTimer: ALLY_SPAWN_INTERVAL, cameraShake: null,
             specialEnemyState: { ...INITIAL_SPECIAL_ENEMY_SPAWN_STATE },
-            comboTimer: 0, airstrikeAvailable: false, airstrikeActive: false, airstrikesPending: 0, airstrikeSpawnTimer: 0, // GameState level airstrike reset
-            pendingInitialSpawns: 0, initialSpawnTickCounter: 0, 
-            logs: newLogsForRun, 
-            gameOverPendingTimer: 0, // Reset timer
-            waveTitleText: '', waveTitleTimer: 0, // Reset wave title
+            comboTimer: 0, airstrikeAvailable: false, airstrikeActive: false, airstrikesPending: 0, airstrikeSpawnTimer: 0,
+            pendingInitialSpawns: 0, initialSpawnTickCounter: 0,
+            logs: newLogsForRun,
+            gameOverPendingTimer: 0,
+            waveTitleText: '', waveTitleTimer: 0,
         };
     });
   }, []);
@@ -1838,30 +1845,31 @@ export const useGameLogic = (
   const restartFromGameOver = useCallback(() => {
     setGameState(prev => {
         const playerStateForShop = {
-            ...prev.player, 
-            health: prev.player.maxHealth, 
-            allies: [], 
+            ...prev.player,
+            health: prev.player.maxHealth,
+            allies: [],
             pathHistory: [],
             comboCount: 0, playerHitTimer: 0,
+            highestRoundAchievedThisRun: 0, // Keep existing total kills, but reset run-specific highestRound
             x: Math.max(PLAYER_WORLD_EDGE_MARGIN, Math.min(WORLD_AREA.width / 2 - PLAYER_SIZE.width / 2, WORLD_AREA.width - PLAYER_SIZE.width - PLAYER_WORLD_EDGE_MARGIN)),
             y: Math.max(PLAYER_WORLD_EDGE_MARGIN, Math.min(WORLD_AREA.height / 2 - PLAYER_SIZE.height / 2, WORLD_AREA.height - PLAYER_SIZE.height - PLAYER_WORLD_EDGE_MARGIN)),
             lastShootingDirection: { x: 1, y: 0 },
-             airstrikeAvailable: false, airstrikeActive: false, airstrikesPending: 0, airstrikeSpawnTimer: 0, // Reset airstrike for shop
+             airstrikeAvailable: false, airstrikeActive: false, airstrikesPending: 0, airstrikeSpawnTimer: 0,
         };
 
-        if (playerStateForShop.championType === undefined && playerStateForShop.clipSize) { 
+        if (playerStateForShop.championType === undefined && playerStateForShop.clipSize) {
             playerStateForShop.ammoLeftInClip = playerStateForShop.clipSize;
             playerStateForShop.currentReloadTimer = 0;
         }
         return {
-            ...prev, gameStatus: 'SHOP', 
-            player: playerStateForShop, 
+            ...prev, gameStatus: 'SHOP',
+            player: playerStateForShop,
             enemies: [], projectiles: [], currentWaveEnemies: 0, cameraShake: null,
             specialEnemyState: { ...INITIAL_SPECIAL_ENEMY_SPAWN_STATE },
-            comboTimer: 0, airstrikeAvailable: false, airstrikeActive: false, airstrikesPending: 0, airstrikeSpawnTimer: 0, // GameState level airstrike reset
-            pendingInitialSpawns: 0, initialSpawnTickCounter: 0, 
-            gameOverPendingTimer: 0, // Reset timer
-            waveTitleText: '', waveTitleTimer: 0, // Reset wave title
+            comboTimer: 0, airstrikeAvailable: false, airstrikeActive: false, airstrikesPending: 0, airstrikeSpawnTimer: 0,
+            pendingInitialSpawns: 0, initialSpawnTickCounter: 0,
+            gameOverPendingTimer: 0,
+            waveTitleText: '', waveTitleTimer: 0,
         };
     });
   }, []);
@@ -1873,10 +1881,10 @@ export const useGameLogic = (
     });
   }, []);
 
-  const resetGameData = useCallback(() => { 
+  const resetGameData = useCallback(() => {
     setGameState(prev => {
         const touchDevice = typeof window !== 'undefined' && (('ontouchstart'in window) || navigator.maxTouchPoints > 0);
-        return getInitialGameState(prev.gameArea, touchDevice); 
+        return getInitialGameState(prev.gameArea, touchDevice);
     });
   }, []);
 
@@ -1901,6 +1909,7 @@ export const useGameLogic = (
             ammoLeftInClip: GUN_GUY_CLIP_SIZE, reloadDuration: GUN_GUY_RELOAD_TIME, currentReloadTimer: 0,
             allies: [], coins: 0,
             airstrikeAvailable: false, airstrikeActive: false, airstrikesPending: 0, airstrikeSpawnTimer: 0, // Initialize for player
+            highestRoundAchievedThisRun: 0, // Also for tutorial player, though not directly used for unlocks
         };
         const camX = Math.max(0, Math.min(tutorialPlayer.x + tutorialPlayer.width / 2 - prev.gameArea.width / 2, WORLD_AREA.width - prev.gameArea.width));
         const camY = Math.max(0, Math.min(tutorialPlayer.y + tutorialPlayer.height / 2 - prev.gameArea.height / 2, WORLD_AREA.height - prev.gameArea.height));
@@ -1914,8 +1923,8 @@ export const useGameLogic = (
             tutorialMessages: TUTORIAL_MESSAGES,
             tutorialEntities: { ...INITIAL_TUTORIAL_ENTITIES, step2AllySpawnIndex: 0, step3SpawnTimer: 0, step5SpawnTimer: 0, tutorialHighlightTarget: null },
             enemies: [], coins: [], collectibleAllies: [], projectiles: [],
-            round: 0, 
-            nextAllySpawnTimer: 99999, 
+            round: 0,
+            nextAllySpawnTimer: 99999,
         };
     });
   }, []);
@@ -1929,16 +1938,16 @@ export const useGameLogic = (
             return getInitialGameState(prev.gameArea, touchDevice);
         }
 
-        let newTutorialEntities: TutorialEntities = { 
+        let newTutorialEntities: TutorialEntities = {
             enemies: [], coins: [], collectibleAllies: [],
-            step2AllySpawnIndex: prev.tutorialEntities.step2AllySpawnIndex, 
-            step3SpawnTimer: 0, 
+            step2AllySpawnIndex: prev.tutorialEntities.step2AllySpawnIndex,
+            step3SpawnTimer: 0,
             step5SpawnTimer: 0, // For airstrike step (now step 8)
             tutorialHighlightTarget: null,
         };
         let updatedPlayer = { ...prev.player };
 
-        if (nextStep === 1) { 
+        if (nextStep === 1) {
             const invulnerableHealth = 999999;
             const dummy1 = createNewEnemy(0, prev.worldArea, EnemyType.TUTORIAL_DUMMY);
             dummy1.x = prev.player.x + 120; dummy1.y = prev.player.y - 30;
@@ -1949,8 +1958,8 @@ export const useGameLogic = (
             dummy2.x = prev.player.x - 180; dummy2.y = prev.player.y + 60;
             dummy2.health = invulnerableHealth; dummy2.maxHealth = invulnerableHealth;
             newTutorialEntities.enemies.push(dummy2);
-        } else if (nextStep === 2) { 
-            newTutorialEntities.step2AllySpawnIndex = 0; 
+        } else if (nextStep === 2) {
+            newTutorialEntities.step2AllySpawnIndex = 0;
             if (TUTORIAL_ALLY_SPAWN_ORDER.length > 0) {
                 const firstAllyType = TUTORIAL_ALLY_SPAWN_ORDER[0];
                 const collectible = createCollectibleAlly(firstAllyType, prev.player, [], prev.worldArea, true);
@@ -1982,7 +1991,7 @@ export const useGameLogic = (
             newTutorialEntities.coins = [];
             newTutorialEntities.collectibleAllies = [];
         }
-        
+
         // Ensure highlight is cleared if not a specific HUD step and not the last step (already handled for last step)
         if (![4, 5, 6, 7].includes(nextStep) && nextStep !== 9) {
             newTutorialEntities.tutorialHighlightTarget = null;
@@ -2012,13 +2021,13 @@ export const useGameLogic = (
       if (gameState.gameStatus === 'PLAYING' || gameState.gameStatus === 'GAME_OVER_PENDING') {
         gameTick();
       } else if (gameState.gameStatus === 'TUTORIAL_ACTIVE') {
-        gameTickTutorial(); 
+        gameTickTutorial();
       }
-      
+
       if (gameLoopRef.current && ['PLAYING', 'PAUSED', 'GAME_OVER_PENDING', 'TUTORIAL_ACTIVE'].includes(gameState.gameStatus)) {
          gameLoopRef.current = requestAnimationFrame(actualLoop);
-      } else if (gameLoopRef.current) { 
-        cancelAnimationFrame(gameLoopRef.current); gameLoopRef.current = null; 
+      } else if (gameLoopRef.current) {
+        cancelAnimationFrame(gameLoopRef.current); gameLoopRef.current = null;
       }
     }
     if (['PLAYING', 'PAUSED', 'GAME_OVER_PENDING', 'TUTORIAL_ACTIVE'].includes(gameState.gameStatus)) {
@@ -2027,12 +2036,12 @@ export const useGameLogic = (
       if (gameLoopRef.current) { cancelAnimationFrame(gameLoopRef.current); gameLoopRef.current = null; }
     }
     return () => { if (gameLoopRef.current) { cancelAnimationFrame(gameLoopRef.current); gameLoopRef.current = null; } };
-  }, [gameState.gameStatus, gameTick, gameTickTutorial]); 
+  }, [gameState.gameStatus, gameTick, gameTickTutorial]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
-      if (key === 'p' && gameState.gameStatus !== 'GAME_OVER_PENDING' && gameState.gameStatus !== 'TUTORIAL_ACTIVE') { 
+      if (key === 'p' && gameState.gameStatus !== 'GAME_OVER_PENDING' && gameState.gameStatus !== 'TUTORIAL_ACTIVE') {
         e.preventDefault();
         togglePause();
       } else if (key === 'q') {
@@ -2049,7 +2058,7 @@ export const useGameLogic = (
 
     const handleKeyUp = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
-      if (!['p', 'q'].includes(key)) { 
+      if (!['p', 'q'].includes(key)) {
         setGameState(prev => ({ ...prev, keysPressed: { ...prev.keysPressed, [key]: false } }));
       }
     };
@@ -2088,6 +2097,6 @@ export const useGameLogic = (
   return {
     gameState, gameAreaRef, startGame, confirmChampionSelection, purchaseUpgrade, playNewRunFromShop,
     goToMenu, resetGameData, restartFromGameOver, togglePause, handleJoystickMove, handleJoystickRelease, updateGameAreaSize,
-    activateAirstrike, startTutorialMode, advanceTutorialStep, endTutorialMode, 
+    activateAirstrike, startTutorialMode, advanceTutorialStep, endTutorialMode,
   };
 };

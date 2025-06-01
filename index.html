@@ -4,7 +4,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>LINEFIRE</title>
+    <title>Pixel Squad Survivor</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;300;400;500;600;700&display=swap" rel="stylesheet">
@@ -86,11 +86,47 @@
         background-color: var(--color-stroke-primary);
         border: var(--stroke-width-standard) solid var(--color-stroke-primary);
         color: var(--color-background);
+        padding: 8px 16px; /* Ensure consistent base padding */
+        border-radius: 6px; /* Ensure consistent base radius */
         font-weight: 500; /* Finer button weight */
+        transition: all 0.15s ease-in-out; /* Ensure transition */
       }
       .btn-primary-minimal:hover:not(:disabled) {
         background-color: var(--color-stroke-secondary);
         border-color: var(--color-stroke-secondary);
+      }
+      .btn-primary-minimal:active:not(:disabled) {
+        transform: scale(0.98); /* Ensure active state */
+      }
+      .btn-primary-minimal:disabled {
+        border-color: var(--color-accent-subtle); /* Ensure disabled state */
+        color: var(--color-accent-subtle);
+        background-color: var(--color-accent-subtle);
+        cursor: not-allowed;
+      }
+
+      /* Tutorial Specific Button Styles */
+      .btn-tutorial-secondary {
+        font-family: 'Inter', sans-serif;
+        background-color: transparent;
+        border: var(--stroke-width-standard) solid var(--color-stroke-secondary); /* Softer border */
+        color: var(--color-stroke-secondary);                                   /* Softer text */
+        padding: 8px 16px; /* Base padding consistent with btn-minimal */
+        border-radius: 6px;
+        font-weight: 500;
+        transition: all 0.15s ease-in-out;
+      }
+      .btn-tutorial-secondary:hover:not(:disabled) {
+        background-color: var(--color-stroke-secondary); /* Softer hover */
+        color: var(--color-background); 
+      }
+      .btn-tutorial-secondary:active:not(:disabled) {
+        transform: scale(0.98);
+      }
+      .btn-tutorial-secondary:disabled {
+        border-color: var(--color-accent-subtle);
+        color: var(--color-accent-subtle);
+        cursor: not-allowed;
       }
       
       .kbd-minimal {
@@ -221,13 +257,13 @@
   }
 }
 </script>
-<link rel="stylesheet" href="index.css">
+<link rel="stylesheet" href="/index.css">
 </head>
   <body class="noselect">
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <audio id="background-music" src="audio/background-music.mp3" loop type="audio/mpeg"></audio>
     <audio id="ambient-sound" src="audio/ambient-sound.mp3" loop type="audio/mpeg"></audio>
     <div id="root"></div>
-    <script type="module" src="index.tsx"></script>
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>

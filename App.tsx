@@ -3,15 +3,15 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useGameLogic } from './hooks/useGameLogic';
 import GameObjectView from './components/GameObjectView';
 import HUD from './components/HUD';
-import { UpgradeModal } from './components/UpgradeModal'; 
+import { UpgradeModal } from './components/UpgradeModal';
 import StartScreen from './components/StartScreen';
 import GameOverScreen from './components/GameOverScreen';
 import ChampionSelectScreen from './components/ChampionSelectScreen';
 import OffScreenIndicator from './components/OffScreenIndicator';
 import Joystick from './components/Joystick';
-import StaticFieldLinesBackground from './components/StaticFieldLinesBackground'; 
-import WaveStartTitle from './components/WaveStartTitle'; 
-import TutorialOverlay from './components/TutorialOverlay'; 
+import StaticFieldLinesBackground from './components/StaticFieldLinesBackground';
+import WaveStartTitle from './components/WaveStartTitle';
+import TutorialOverlay from './components/TutorialOverlay';
 import { CHAMPION_CHOICES, WORLD_AREA, UI_BACKGROUND_NEUTRAL, UI_STROKE_PRIMARY, UI_ACCENT_SUBTLE, WAVE_TITLE_STAY_DURATION_TICKS, WAVE_TITLE_FADE_OUT_DURATION_TICKS } from './constants';
 import { Player, Ally, Enemy, GameState, Projectile, Position, Size, TutorialEntities } from './types';
 
@@ -22,7 +22,7 @@ const RenderGameScene: React.FC<{ gameState: GameState, isTutorialActive?: boole
   } = gameState;
 
   const entitiesToRender = {
-    projectiles: isTutorialActive ? projectiles : projectiles, 
+    projectiles: isTutorialActive ? projectiles : projectiles,
     coins: isTutorialActive ? tutorialEntities.coins : coins,
     collectibleAllies: isTutorialActive ? tutorialEntities.collectibleAllies : collectibleAllies,
     enemies: isTutorialActive ? tutorialEntities.enemies : enemies,
@@ -34,7 +34,7 @@ const RenderGameScene: React.FC<{ gameState: GameState, isTutorialActive?: boole
       {entitiesToRender.projectiles.map(p =>
           <GameObjectView
               key={p.id}
-              gameObject={{...p, color: UI_STROKE_PRIMARY, velocity: p.velocity}} 
+              gameObject={{...p, color: UI_STROKE_PRIMARY, velocity: p.velocity}}
               entityType="projectile"
               camera={camera}
               viewport={gameArea}
@@ -43,7 +43,7 @@ const RenderGameScene: React.FC<{ gameState: GameState, isTutorialActive?: boole
       {entitiesToRender.coins.map(c =>
           <GameObjectView
               key={c.id}
-              gameObject={{...c, color: UI_STROKE_PRIMARY}} 
+              gameObject={{...c, color: UI_STROKE_PRIMARY}}
               entityType="coin"
               camera={camera}
               viewport={gameArea}
@@ -76,7 +76,7 @@ const RenderGameScene: React.FC<{ gameState: GameState, isTutorialActive?: boole
         return charactersToRender.map(item => (
           <GameObjectView
             key={item.obj.id}
-            gameObject={item.obj} 
+            gameObject={item.obj}
             entityType={item.type}
             camera={camera}
             viewport={gameArea}
@@ -141,6 +141,7 @@ export const App: React.FC = () => {
 
   const ambientAudioRef = useRef<HTMLAudioElement | null>(null);
   const backgroundAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
 
   const {
     gameState,
@@ -150,13 +151,13 @@ export const App: React.FC = () => {
     purchaseUpgrade,
     playNewRunFromShop,
     goToMenu,
-    resetGameData, 
+    resetGameData,
     restartFromGameOver,
     togglePause,
     handleJoystickMove,
     handleJoystickRelease,
     updateGameAreaSize,
-    activateAirstrike, 
+    activateAirstrike,
     startTutorialMode,
     advanceTutorialStep,
     endTutorialMode,
@@ -173,6 +174,7 @@ export const App: React.FC = () => {
     const ambientElement = document.getElementById('ambient-sound');
     if (ambientElement instanceof HTMLAudioElement) {
       ambientAudioRef.current = ambientElement;
+      ambientAudioRef.current.muted = isMuted;
     } else {
       console.warn('Failed to get ambient-sound HTMLAudioElement. Found:', ambientElement);
       ambientAudioRef.current = null;
@@ -181,17 +183,41 @@ export const App: React.FC = () => {
     const backgroundElement = document.getElementById('background-music');
     if (backgroundElement instanceof HTMLAudioElement) {
       backgroundAudioRef.current = backgroundElement;
+      backgroundAudioRef.current.muted = isMuted;
     } else {
       console.warn('Failed to get background-music HTMLAudioElement. Found:', backgroundElement);
       backgroundAudioRef.current = null;
     }
-  }, []);
+  }, [isMuted]);
+
+  const toggleMute = useCallback(() => {
+    setIsMuted(prevMuted => {
+      const newMutedState = !prevMuted;
+      if (ambientAudioRef.current) {
+        ambientAudioRef.current.muted = newMutedState;
+      }
+      if (backgroundAudioRef.current) {
+        backgroundAudioRef.current.muted = newMutedState;
+      }
+      // If unmuting and game is in a state where audio should be playing, try to play it.
+      if (!newMutedState) {
+          if (['SHOP', 'PLAYING', 'PAUSED', 'GAME_OVER_PENDING', 'GAME_OVER', 'INIT_NEW_RUN', 'TUTORIAL_ACTIVE'].includes(gameStatus) && ambientAudioRef.current && ambientAudioRef.current.paused) {
+            playAudio(ambientAudioRef, 'ambient-sound');
+          }
+          if (['PLAYING', 'INIT_NEW_RUN', 'TUTORIAL_ACTIVE'].includes(gameStatus) && backgroundAudioRef.current && backgroundAudioRef.current.paused) {
+             playAudio(backgroundAudioRef, 'background-music');
+          }
+      }
+      return newMutedState;
+    });
+  }, [gameStatus]);
+
 
   const playAudio = useCallback(async (audioRef: React.RefObject<HTMLAudioElement>, audioName: string) => {
     const audioEl = audioRef.current;
     if (audioEl && typeof audioEl.play === 'function') {
+      audioEl.muted = isMuted; // Ensure mute state is respected before playing
       try {
-        audioEl.muted = false;
         await audioEl.play();
       } catch (error) {
         if ((error as DOMException).name === 'AbortError') {
@@ -203,7 +229,7 @@ export const App: React.FC = () => {
     } else {
       console.warn(`Cannot play ${audioName}: audioRef.current is not valid.`);
     }
-  }, []);
+  }, [isMuted]);
 
   const pauseAudio = useCallback((audioRef: React.RefObject<HTMLAudioElement>, audioName: string) => {
     const audioEl = audioRef.current;
@@ -238,7 +264,7 @@ export const App: React.FC = () => {
     } else if (['GAME_OVER_PENDING', 'GAME_OVER', 'SHOP', 'IDLE', 'CHAMPION_SELECT'].includes(gameStatus)) {
       stopAudio(backgroundAudioRef, 'background-music');
     }
-  }, [gameStatus, playAudio, pauseAudio, stopAudio]);
+  }, [gameStatus, playAudio, pauseAudio, stopAudio, isMuted]);
 
 
   useEffect(() => {
@@ -246,12 +272,12 @@ export const App: React.FC = () => {
       if (gameOuterContainerRef.current) {
         const containerWidth = gameOuterContainerRef.current.clientWidth;
         const containerHeight = gameOuterContainerRef.current.clientHeight;
-        
+
         if (containerWidth === 0 || containerHeight === 0) return;
-        
+
         let newVisualSize: Size = { width: containerWidth, height: containerHeight };
-        newVisualSize.width = Math.max(newVisualSize.width, 320); 
-        newVisualSize.height = Math.max(newVisualSize.height, 320); 
+        newVisualSize.width = Math.max(newVisualSize.width, 320);
+        newVisualSize.height = Math.max(newVisualSize.height, 320);
 
         setVisualGameSize(currentSize => {
             if (currentSize.width !== newVisualSize.width || currentSize.height !== newVisualSize.height) {
@@ -263,7 +289,7 @@ export const App: React.FC = () => {
       }
     };
 
-    calculateAndSetGameArea(); 
+    calculateAndSetGameArea();
     window.addEventListener('resize', calculateAndSetGameArea);
     window.addEventListener('orientationchange', calculateAndSetGameArea);
 
@@ -271,38 +297,38 @@ export const App: React.FC = () => {
       window.removeEventListener('resize', calculateAndSetGameArea);
       window.removeEventListener('orientationchange', calculateAndSetGameArea);
     };
-  }, [updateGameAreaSize]); 
+  }, [updateGameAreaSize]);
 
   const handleGameAreaClick = (event: React.MouseEvent<HTMLDivElement>) => {
     if (event.target instanceof HTMLButtonElement || (event.target instanceof HTMLElement && event.target.closest('button'))) {
-        return; 
+        return;
     }
     if (gameAreaRef.current && (event.target === gameAreaRef.current || gameAreaRef.current.contains(event.target as Node))) {
         let isUIElement = false;
-        const hudElement = document.querySelector('.absolute.top-0.left-0.w-full'); 
+        const hudElement = document.querySelector('.absolute.top-0.left-0.w-full');
         if (hudElement && hudElement.contains(event.target as Node)) {
-            const clickedOnPauseButton = (event.target as HTMLElement).closest('button[aria-label*="Pause"], button[aria-label*="Resume"]');
-            if (clickedOnPauseButton) {
-                isUIElement = true; 
+            const clickedOnControlButton = (event.target as HTMLElement).closest('button[aria-label*="Pause"], button[aria-label*="Resume"], button[aria-label*="Mute"], button[aria-label*="Unmute"]');
+            if (clickedOnControlButton) {
+                isUIElement = true;
             } else {
                 const dataTutorialHighlightElements = (event.target as HTMLElement).closest('[data-tutorial-highlight-id]');
-                if (dataTutorialHighlightElements) { 
+                if (dataTutorialHighlightElements) {
                     isUIElement = true;
                 }
             }
         }
-        
+
         if (!isUIElement) {
           if (gameStatus === 'PLAYING' && gameState.airstrikeAvailable && !gameState.airstrikeActive) {
             activateAirstrike();
-          } else if (gameStatus === 'TUTORIAL_ACTIVE' && tutorialStep === 8 && 
+          } else if (gameStatus === 'TUTORIAL_ACTIVE' && tutorialStep === 8 &&
                      player.airstrikeAvailable && player.airstrikeActive !== undefined && !player.airstrikeActive) {
             activateAirstrike();
           }
         }
     }
   };
-  
+
   const currentWaveTitleOpacity = useMemo(() => {
     if (waveTitleTimer <= 0) return 0;
     if (waveTitleTimer <= WAVE_TITLE_FADE_OUT_DURATION_TICKS) {
@@ -318,7 +344,7 @@ export const App: React.FC = () => {
     if (gameStatus === 'CHAMPION_SELECT') {
       return <ChampionSelectScreen champions={CHAMPION_CHOICES} onSelectChampion={confirmChampionSelection} onGoBack={goToMenu} />;
     }
-    
+
     const backgroundElement = (gameStatus === 'SHOP' || gameStatus === 'PLAYING' || gameStatus === 'PAUSED' || gameStatus === 'GAME_OVER_PENDING' || gameStatus === 'TUTORIAL_ACTIVE') ? (
         <StaticFieldLinesBackground worldArea={WORLD_AREA} camera={camera} gameArea={gameState.gameArea} />
       ) : null;
@@ -330,7 +356,7 @@ export const App: React.FC = () => {
           <UpgradeModal
               player={player}
               upgrades={availableUpgrades}
-              logs={logs} 
+              logs={logs}
               onPurchase={purchaseUpgrade}
               onContinue={playNewRunFromShop}
               onGoToMenu={goToMenu}
@@ -344,7 +370,7 @@ export const App: React.FC = () => {
         {backgroundElement}
         <HUD
             player={player}
-            round={gameStatus === 'TUTORIAL_ACTIVE' ? 0 : round} 
+            round={gameStatus === 'TUTORIAL_ACTIVE' ? 0 : round}
             enemiesLeft={currentWaveEnemies}
             totalEnemiesThisRound={totalEnemiesThisRound}
             gameStatus={gameStatus}
@@ -355,6 +381,8 @@ export const App: React.FC = () => {
             airstrikeAvailable={gameStatus === 'TUTORIAL_ACTIVE' ? player.airstrikeAvailable || false : airstrikeAvailable}
             airstrikeActive={gameStatus === 'TUTORIAL_ACTIVE' ? player.airstrikeActive || false : airstrikeActive}
             tutorialHighlightTarget={gameStatus === 'TUTORIAL_ACTIVE' ? tutorialEntities.tutorialHighlightTarget : null}
+            isMuted={isMuted}
+            onToggleMute={toggleMute}
         />
         <RenderGameScene gameState={gameState} isTutorialActive={gameStatus === 'TUTORIAL_ACTIVE'} />
         {currentWaveTitleOpacity > 0 && (gameStatus === 'PLAYING' || gameStatus === 'INIT_NEW_RUN') && (
@@ -362,17 +390,17 @@ export const App: React.FC = () => {
         )}
       </>
     );
-    
-    if (gameStatus === 'GAME_OVER') { 
+
+    if (gameStatus === 'GAME_OVER') {
         return (
             <>
-                {gameScreenElements} 
-                <GameOverScreen 
-                    player={player} 
-                    round={round} 
-                    onGoToMenu={goToMenu} 
-                    onGoToShop={restartFromGameOver} 
-                    onRetry={playNewRunFromShop} 
+                {gameScreenElements}
+                <GameOverScreen
+                    player={player}
+                    round={round}
+                    onGoToMenu={goToMenu}
+                    onGoToShop={restartFromGameOver}
+                    onRetry={playNewRunFromShop}
                 />
             </>
         );
@@ -384,41 +412,50 @@ export const App: React.FC = () => {
         <>
           {gameScreenElements}
           <div
-            className="absolute inset-0 flex flex-col items-center justify-center z-[900]" 
-            style={{ backgroundColor: 'rgba(0,0,0,0.3)'}} 
+            className="absolute inset-0 flex flex-col items-center justify-center z-[900]"
+            style={{ backgroundColor: 'rgba(0,0,0,0.3)'}}
             aria-modal="true"
             role="dialog"
             aria-labelledby="pause-dialog-title"
-            onClick={togglePause} 
           >
             <h2
               id="pause-dialog-title"
-              className="text-6xl sm:text-7xl select-none uppercase"
-              style={{ 
+              className="text-6xl sm:text-7xl select-none uppercase mb-6"
+              style={{
                 fontFamily: "'Inter', sans-serif",
-                fontWeight: '100', // Thin weight
-                color: UI_BACKGROUND_NEUTRAL, 
-                textShadow: `0 0 10px ${UI_STROKE_PRIMARY}, 0 0 20px ${UI_STROKE_PRIMARY}` 
+                fontWeight: '100', 
+                color: UI_BACKGROUND_NEUTRAL,
               }}
             >
               PAUSED
             </h2>
             <button
               onClick={(e) => {
-                e.stopPropagation(); 
+                e.stopPropagation();
+                togglePause();
+              }}
+              className="btn-minimal mb-3 py-2.5 px-8 text-lg"
+              style={{borderColor: UI_BACKGROUND_NEUTRAL, color: UI_BACKGROUND_NEUTRAL, backgroundColor: 'rgba(0,0,0,0.2)', minWidth: '200px'}}
+              aria-label="Resume Game"
+            >
+              RESUME
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
                 goToMenu();
               }}
-              className="btn-minimal mt-8 py-2 px-6 text-lg"
-              style={{borderColor: UI_BACKGROUND_NEUTRAL, color: UI_BACKGROUND_NEUTRAL, backgroundColor: 'rgba(0,0,0,0.2)'}}
+              className="btn-minimal py-2.5 px-8 text-lg"
+              style={{borderColor: UI_BACKGROUND_NEUTRAL, color: UI_BACKGROUND_NEUTRAL, backgroundColor: 'rgba(0,0,0,0.2)', minWidth: '200px'}}
               aria-label="Return to Menu"
             >
-              Return to Menu
+              MENU
             </button>
           </div>
         </>
       );
     }
-    
+
     if (gameStatus === 'PLAYING' || gameStatus === 'INIT_NEW_RUN' || gameStatus === 'GAME_OVER_PENDING') {
         return gameScreenElements;
     }
@@ -436,8 +473,8 @@ export const App: React.FC = () => {
             </>
         );
     }
-    
-    return null; 
+
+    return null;
   };
 
   return (
@@ -447,13 +484,13 @@ export const App: React.FC = () => {
     >
       <div
         ref={gameAreaRef}
-        className="relative overflow-hidden game-cursor select-none noselect game-area-background" 
+        className="relative overflow-hidden game-cursor select-none noselect game-area-background"
         style={{
           width: `${visualGameSize.width}px`,
           height: `${visualGameSize.height}px`,
         }}
-        tabIndex={0} 
-        onClick={handleGameAreaClick} 
+        tabIndex={0}
+        onClick={handleGameAreaClick}
       >
         {gameContent()}
       </div>
@@ -461,11 +498,11 @@ export const App: React.FC = () => {
         <Joystick
           onMove={handleJoystickMove}
           onRelease={handleJoystickRelease}
-          baseSize={100} 
-          knobSize={50}  
+          baseSize={100}
+          knobSize={50}
           joystickPosition={{
-            bottom: 'max(20px, env(safe-area-inset-bottom, 20px))', 
-            left: 'max(20px, env(safe-area-inset-left, 20px))', 
+            bottom: 'max(20px, env(safe-area-inset-bottom, 20px))',
+            left: 'max(20px, env(safe-area-inset-left, 20px))',
           }}
         />
       )}

@@ -55,6 +55,7 @@ export interface Player extends Character {
   highestComboCount: number; // For Game Over screen
   maxSquadSizeAchieved: number; // For Game Over screen
   playerHitTimer: number; // For damage flash effect
+  highestRoundAchievedThisRun: number; // For survival logs
 
   // Player-specific airstrike fields for tutorial
   airstrikeAvailable?: boolean;
@@ -201,8 +202,9 @@ export enum LogId {
   CAPTAIN_SQUAD = 'CAPTAIN_SQUAD',
   LIEUTENANT_COLONEL_SQUAD = 'LIEUTENANT_COLONEL_SQUAD',
   COLONEL_SQUAD = 'COLONEL_SQUAD',
-  // Example for a log not tied to "per run" stats, if needed later
-  // MASTER_OF_AUGMENTS = 'MASTER_OF_AUGMENTS',
+  SURVIVED_WAVE_1 = 'SURVIVED_WAVE_1',
+  SURVIVED_WAVE_10 = 'SURVIVED_WAVE_10',
+  SURVIVED_WAVE_20 = 'SURVIVED_WAVE_20',
 }
 
 export interface LogDefinition {

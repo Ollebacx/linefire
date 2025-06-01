@@ -2,7 +2,7 @@
 import { Size, Player, Upgrade, UpgradeType, AllyType, ChampionChoice, EnemyType, LogDefinition, LogId, TutorialEntities, TutorialHighlightTarget } from './types';
 import {
     HeartIcon, BoltIcon, ArrowsPointingInIcon, UserPlusIcon, FunnelIcon, UserGroupIcon,
-    CheckIcon, ShieldCheckIcon, BanknotesIcon, UsersIcon, LockClosedIcon, AcademicCapIcon // Icons for Logs
+    CheckIcon, ShieldCheckIcon, BanknotesIcon, UsersIcon, LockClosedIcon, AcademicCapIcon, StarIcon // Icons for Logs
 } from '@heroicons/react/24/solid'; // Using solid for consistency with other icons, outline was in types.ts thought process
 
 // UI Colors
@@ -313,6 +313,7 @@ export const INITIAL_PLAYER_STATE: Player = {
   currentRunCoinsEarned: 0,
   highestComboCount: 0,
   maxSquadSizeAchieved: 0,
+  highestRoundAchievedThisRun: 0,
   // Player-specific airstrike fields for tutorial and potentially other modes
   airstrikeAvailable: false,
   airstrikeActive: false,
@@ -404,4 +405,7 @@ export const INITIAL_LOG_DEFINITIONS: LogDefinition[] = [
   { id: LogId.CAPTAIN_SQUAD, name: 'Squad Captain', description: 'Command a squad of 8 units (including self).', icon: UsersIcon, condition: (p) => p.allies.length >= 7 },
   { id: LogId.LIEUTENANT_COLONEL_SQUAD, name: 'Lt. Colonel', description: 'Command a squad of 11 units (including self).', icon: UsersIcon, condition: (p) => p.allies.length >= 10 },
   { id: LogId.COLONEL_SQUAD, name: 'Colonel', description: 'Command a squad of 15 units (including self).', icon: UsersIcon, condition: (p) => p.allies.length >= 14 },
+  { id: LogId.SURVIVED_WAVE_1, name: 'Lucky', description: 'Successfully cleared wave 1.', icon: StarIcon, condition: (p) => p.highestRoundAchievedThisRun >= 1 },
+  { id: LogId.SURVIVED_WAVE_10, name: 'Warrior', description: 'Successfully cleared wave 10.', icon: StarIcon, condition: (p) => p.highestRoundAchievedThisRun >= 10 },
+  { id: LogId.SURVIVED_WAVE_20, name: 'Veteran', description: 'Successfully cleared wave 20.', icon: StarIcon, condition: (p) => p.highestRoundAchievedThisRun >= 20 },
 ];

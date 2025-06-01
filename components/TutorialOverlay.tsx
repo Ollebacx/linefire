@@ -34,7 +34,7 @@ const TutorialOverlay: React.FC<TutorialOverlayProps> = ({ currentMessageHTML, o
           {!isLastStep && (
             <button
               onClick={onEndTutorial}
-              className="btn-minimal py-1.5 px-3 text-sm sm:text-base flex-1 sm:flex-initial"
+              className="btn-tutorial-secondary py-1.5 px-3 text-sm sm:text-base flex-1 sm:flex-initial"
               aria-label="Return to Menu"
             >
               Return to Menu

@@ -1,14 +1,14 @@
 
 import React from 'react';
 import { Player, GameState, TutorialHighlightTarget } from '../types';
-import { PauseIcon, PlayIcon } from '@heroicons/react/24/solid';
+import { PauseIcon, PlayIcon, SpeakerWaveIcon, SpeakerXMarkIcon } from '@heroicons/react/24/solid';
 import { UI_STROKE_PRIMARY, UI_BACKGROUND_NEUTRAL, UI_ACCENT_CRITICAL, UI_STROKE_SECONDARY, UI_ACCENT_SUBTLE, ALLY_SPAWN_INTERVAL, UI_ACCENT_HEALTH, UI_ACCENT_WARNING } from '../constants';
 
 interface HUDProps {
   player: Player;
   round: number;
-  enemiesLeft: number; 
-  totalEnemiesThisRound: number; 
+  enemiesLeft: number;
+  totalEnemiesThisRound: number;
   gameStatus: GameState['gameStatus'];
   nextRoundTimer?: number;
   nextAllySpawnTimer: number;
@@ -17,12 +17,15 @@ interface HUDProps {
   airstrikeAvailable: boolean;
   airstrikeActive: boolean;
   tutorialHighlightTarget?: TutorialHighlightTarget;
+  isMuted: boolean;
+  onToggleMute: () => void;
 }
 
-const HUD: React.FC<HUDProps> = ({ 
-  player, round, enemiesLeft, totalEnemiesThisRound, gameStatus, 
+const HUD: React.FC<HUDProps> = ({
+  player, round, enemiesLeft, totalEnemiesThisRound, gameStatus,
   nextRoundTimer, nextAllySpawnTimer, onPauseToggle, isPaused,
-  airstrikeAvailable, airstrikeActive, tutorialHighlightTarget
+  airstrikeAvailable, airstrikeActive, tutorialHighlightTarget,
+  isMuted, onToggleMute
 }) => {
   const healthPercentage = (player.health / player.maxHealth) * 100;
   const isHealthLow = healthPercentage < 30;
@@ -38,17 +41,17 @@ const HUD: React.FC<HUDProps> = ({
   };
   const smallTextStyle: React.CSSProperties = { ...baseTextStyle, fontSize: '0.8rem', lineHeight: '1rem', fontWeight: '400'};
   const headingStyle: React.CSSProperties = { ...baseTextStyle, fontSize: '1rem', fontWeight: '600' }; // Semibold for headings
-  
+
   const barHeight = 'h-3 sm:h-4';
   const barWidth = 'w-24 sm:w-32';
 
   let topCenterDynamicMessage = null;
   const topCenterMessageBaseStyle: React.CSSProperties = {
-    ...baseTextStyle, 
+    ...baseTextStyle,
     fontSize: '0.9rem',
-    lineHeight: '1.1rem', 
+    lineHeight: '1.1rem',
     fontWeight: '500', // Medium for status messages
-    marginTop: '0.25rem', 
+    marginTop: '0.25rem',
   };
 
   if (gameStatus !== 'TUTORIAL_ACTIVE') {
@@ -73,8 +76,8 @@ const HUD: React.FC<HUDProps> = ({
         </p>
       );
     }
-  } else { 
-    if (tutorialHighlightTarget === null && player.airstrikeActive) { 
+  } else {
+    if (tutorialHighlightTarget === null && player.airstrikeActive) {
        topCenterDynamicMessage = (
         <p style={{...topCenterMessageBaseStyle, color: UI_ACCENT_WARNING }}>
           AIRSTRIKE INBOUND!
@@ -96,7 +99,7 @@ const HUD: React.FC<HUDProps> = ({
         {/* Left Section: Health, Ally Timer */}
         <div className="flex flex-col items-start space-y-1.5">
           {/* Health Bar */}
-          <div 
+          <div
             className={`flex items-center ${tutorialHighlightTarget === 'health' ? 'hud-highlight' : ''}`}
             data-tutorial-highlight-id="health"
           >
@@ -114,7 +117,7 @@ const HUD: React.FC<HUDProps> = ({
           </div>
 
           {/* Ally Spawn Timer Text */}
-          <div 
+          <div
             className={`flex items-center ${tutorialHighlightTarget === 'allyTimer' ? 'hud-highlight' : ''}`}
             data-tutorial-highlight-id="allyTimer"
           >
@@ -127,7 +130,7 @@ const HUD: React.FC<HUDProps> = ({
         {/* Top Center Section: Coins, Airstrike Status / Combo */}
         <div className="absolute left-1/2 top-2 sm:top-3 transform -translate-x-1/2 flex flex-col items-center pointer-events-none">
             {/* Coins Display */}
-            <div 
+            <div
                 className={`${tutorialHighlightTarget === 'coins' ? 'hud-highlight' : ''}`}
                 data-tutorial-highlight-id="coins"
             >
@@ -145,10 +148,10 @@ const HUD: React.FC<HUDProps> = ({
                 </div>
             )}
         </div>
-        
+
         {/* Right Section: Round & Control Buttons */}
         <div className="flex items-center space-x-1 sm:space-x-2">
-          <div 
+          <div
             className={`text-right ${tutorialHighlightTarget === 'wave' ? 'hud-highlight' : ''}`}
             data-tutorial-highlight-id="wave"
           >
@@ -159,6 +162,15 @@ const HUD: React.FC<HUDProps> = ({
               </p>
             )}
           </div>
+          <button
+            onClick={onToggleMute}
+            className="p-1.5 sm:p-2 rounded-md"
+            style={{ border: `1.5px solid ${UI_STROKE_PRIMARY}`, backgroundColor: UI_BACKGROUND_NEUTRAL }}
+            aria-label={isMuted ? "Unmute audio" : "Mute audio"}
+            aria-pressed={isMuted}
+          >
+            {isMuted ? <SpeakerXMarkIcon className="w-4 h-4 sm:w-5 sm:h-5" style={{color: UI_STROKE_PRIMARY}} /> : <SpeakerWaveIcon className="w-4 h-4 sm:w-5 sm:h-5" style={{color: UI_STROKE_PRIMARY}} />}
+          </button>
           <button
             onClick={onPauseToggle}
             className="p-1.5 sm:p-2 rounded-md"
