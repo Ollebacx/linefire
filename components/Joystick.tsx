@@ -14,11 +14,11 @@ interface JoystickProps {
 const Joystick: React.FC<JoystickProps> = ({
   onMove,
   onRelease,
-  baseSize = 120, // Diameter of the joystick base
-  knobSize = 60,  // Diameter of the knob
+  baseSize = 80, // Diameter of the joystick base
+  knobSize = 30,  // Diameter of the knob
   baseColor = 'rgba(100, 100, 100, 0.3)',
   knobColor = 'rgba(200, 200, 200, 0.6)',
-  joystickPosition = { bottom: '50px', left: '50px' } // Default to bottom-left
+  joystickPosition = { bottom: '50px', right: '50px' } // Default to bottom-left
 }) => {
   const baseRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
