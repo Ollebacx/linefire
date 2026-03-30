@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Linefire</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      :root {
+        --color-background: #F3F4F6; /* Light Gray - Will be overridden by white for game area */
+        --color-stroke-primary: #111827; /* Near Black */
+        --color-stroke-primary-rgb: 17, 24, 39;
+        --color-stroke-secondary: #4B5563; /* Darker Gray */
+        --color-stroke-secondary-rgb: 75, 85, 99;
+        --color-accent-subtle: #D1D5DB; /* Subtle Gray for inactive elements/particles */
+        --color-accent-subtle-rgb: 209, 213, 219;
+        --color-accent-health: #22C55E;
+        --color-accent-health-rgb: 34, 197, 94;
+        --color-accent-warning: #F97316;
+        --color-accent-warning-rgb: 249, 115, 22;
+        --color-accent-critical: #EF4444; /* Red for critical states/airstrike active */
+        --color-accent-critical-rgb: 239, 68, 68;
+        --color-accent-shield: #3B82F6; /* Blue for shield UI elements - NOT USED FOR BUTTON BG ANYMORE */
+        --color-accent-shield-rgb: 59, 130, 246; /* NOT USED FOR BUTTON BG ANYMORE */
+        --stroke-width-standard: 1.5px;
+        --stroke-width-thick: 2.5px;
+      }
+
+      html, body {
+        width: 100vw;
+        height: 100vh;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background-color: var(--color-stroke-secondary); /* Outer pillar/letterbox */
+        font-family: 'Inter', sans-serif; /* Global font */
+        font-weight: 300; /* Default light weight */
+        color: var(--color-stroke-primary);
+      }
+      #root {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      .game-cursor {
+        /* cursor: none;  Consider hiding system cursor if custom one is made */
+      }
+      .noselect {
+        -webkit-touch-callout: none; -webkit-user-select: none; -khtml-user-select: none;
+        -moz-user-select: none; -ms-user-select: none; user-select: none;
+      }
+
+      .game-area-background {
+        background-color: #FFFFFF; /* White background for the game area */
+      }
+
+      @keyframes pulse {
+        0%, 100% { opacity: 1; stroke-width: var(--stroke-width-standard); }
+        50% { opacity: 0.6; stroke-width: var(--stroke-width-thick); }
+      }
+      .collectible-pulse svg {
+        animation: pulse 1.5s infinite ease-in-out;
+      }
+
+      /* Minimalist Button Styles */
+      .btn-minimal {
+        font-family: 'Inter', sans-serif;
+        background-color: transparent;
+        border: var(--stroke-width-standard) solid var(--color-stroke-primary);
+        color: var(--color-stroke-primary);
+        padding: 8px 16px;
+        border-radius: 6px;
+        font-weight: 500; /* Finer button weight */
+        transition: all 0.15s ease-in-out;
+      }
+      .btn-minimal:hover:not(:disabled) {
+        background-color: var(--color-stroke-primary);
+        color: var(--color-background); 
+      }
+      .btn-minimal:active:not(:disabled) {
+        transform: scale(0.98);
+      }
+      .btn-minimal:disabled {
+        border-color: var(--color-accent-subtle);
+        color: var(--color-accent-subtle);
+        cursor: not-allowed;
+      }
+      
+      .btn-primary-minimal {
+        font-family: 'Inter', sans-serif;
+        background-color: var(--color-stroke-primary);
+        border: var(--stroke-width-standard) solid var(--color-stroke-primary);
+        color: var(--color-background);
+        padding: 8px 16px; /* Ensure consistent base padding */
+        border-radius: 6px; /* Ensure consistent base radius */
+        font-weight: 500; /* Finer button weight */
+        transition: all 0.15s ease-in-out; /* Ensure transition */
+      }
+      .btn-primary-minimal:hover:not(:disabled) {
+        background-color: var(--color-stroke-secondary);
+        border-color: var(--color-stroke-secondary);
+      }
+      .btn-primary-minimal:active:not(:disabled) {
+        transform: scale(0.98); /* Ensure active state */
+      }
+      .btn-primary-minimal:disabled {
+        border-color: var(--color-accent-subtle); /* Ensure disabled state */
+        color: var(--color-accent-subtle);
+        background-color: var(--color-accent-subtle);
+        cursor: not-allowed;
+      }
+
+      /* Tutorial Specific Button Styles */
+      .btn-tutorial-secondary {
+        font-family: 'Inter', sans-serif;
+        background-color: transparent;
+        border: var(--stroke-width-standard) solid var(--color-stroke-secondary); /* Softer border */
+        color: var(--color-stroke-secondary);                                   /* Softer text */
+        padding: 8px 16px; /* Base padding consistent with btn-minimal */
+        border-radius: 6px;
+        font-weight: 500;
+        transition: all 0.15s ease-in-out;
+      }
+      .btn-tutorial-secondary:hover:not(:disabled) {
+        background-color: var(--color-stroke-secondary); /* Softer hover */
+        color: var(--color-background); 
+      }
+      .btn-tutorial-secondary:active:not(:disabled) {
+        transform: scale(0.98);
+      }
+      .btn-tutorial-secondary:disabled {
+        border-color: var(--color-accent-subtle);
+        color: var(--color-accent-subtle);
+        cursor: not-allowed;
+      }
+      
+      .kbd-minimal {
+        font-family: 'Inter', sans-serif;
+        display: inline-block;
+        padding: 2px 6px;
+        border-radius: 4px;
+        border: var(--stroke-width-standard) solid var(--color-stroke-secondary);
+        background-color: var(--color-background);
+        color: var(--color-stroke-primary);
+        font-weight: 500; /* KBD slightly heavier for emphasis */
+        margin: 0 2px;
+        box-shadow: 1px 1px 0px var(--color-stroke-secondary);
+      }
+
+      /* Joystick Styles (Minimalist) */
+      .joystick-base {
+        position: fixed;
+        border-radius: 50%;
+        background-color: transparent;
+        border: var(--stroke-width-thick) solid rgba(var(--color-stroke-secondary-rgb), 0.8); /* Darker gray border, more opaque */
+        opacity: 0.8; 
+        /* display: flex; justify-content: center; align-items: center; */ /* Not needed for absolute child */
+        z-index: 1000;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .joystick-knob {
+        border-radius: 50%;
+        background-color: rgba(var(--color-stroke-secondary-rgb), 0.9); /* Darker gray knob, more opaque */
+        opacity: 0.9; 
+        position: absolute;
+        top: 50%; /* For centering with transform */
+        left: 50%; /* For centering with transform */
+        pointer-events: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      /* HUD Highlighting */
+      @keyframes pulse-highlight {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(var(--color-accent-warning-rgb), 0.5); } 
+        50% { box-shadow: 0 0 0 8px rgba(var(--color-accent-warning-rgb), 0); }
+      }
+      .hud-highlight {
+        animation: pulse-highlight 1.5s infinite;
+        border-radius: 4px; 
+        padding: 2px; 
+        margin: -2px; 
+        background-color: rgba(var(--color-accent-warning-rgb), 0.1); 
+      }
+
+      /* Mobile Action Buttons - General */
+      .btn-action-mobile {
+        position: fixed;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 56px; 
+        height: 56px; 
+        border-radius: 50%;
+        background-color: rgba(var(--color-stroke-primary-rgb), 0.6); 
+        border: 1.5px solid var(--color-background); 
+        color: var(--color-background); 
+        box-shadow: 0 2px 5px rgba(0,0,0,0.25);
+        transition: all 0.15s ease-in-out;
+        z-index: 200; 
+        -webkit-tap-highlight-color: transparent;
+      }
+      .btn-action-mobile:hover:not(:disabled) {
+        background-color: rgba(var(--color-stroke-primary-rgb), 0.8);
+      }
+      .btn-action-mobile:active:not(:disabled) {
+        transform: scale(0.95);
+        background-color: rgba(var(--color-stroke-primary-rgb), 1);
+      }
+      .btn-action-mobile:disabled { /* General disabled state for icon buttons */
+        background-color: rgba(var(--color-accent-subtle-rgb), 0.4);
+        border-color: rgba(var(--color-accent-subtle-rgb), 0.6);
+        color: var(--color-stroke-secondary);
+        cursor: not-allowed;
+        opacity: 0.7;
+      }
+      .btn-action-mobile.ready { /* General ready state (e.g. for shield if it had one) */
+        border-color: var(--color-accent-health);
+        box-shadow: 0 0 8px var(--color-accent-health);
+      }
+       .btn-action-mobile.active { /* General active state for icon buttons (like shield active, but not airstrike active) */
+        border-color: var(--color-accent-warning);
+        background-color: rgba(var(--color-accent-warning-rgb), 0.7);
+        color: var(--color-stroke-primary);
+      }
+      .btn-action-mobile svg { /* Styles for icons within buttons */
+        width: 55%; 
+        height: 55%; 
+      }
+
+      /* Airstrike Button Specific Styles (Icon-less, 56px) */
+      .btn-action-mobile.airstrike-button {
+        background-color: var(--color-accent-critical); /* Red when available (not disabled, not active) */
+        border-color: var(--color-background);
+      }
+      .btn-action-mobile.airstrike-button.active { /* Airstrike firing */
+        background-color: var(--color-accent-critical); /* Solid Red */
+        border-color: var(--color-background); 
+      }
+      .btn-action-mobile.airstrike-button:disabled { /* Airstrike charging/unavailable */
+        background-color: var(--color-accent-subtle); /* Solid Light Gray */
+        border-color: var(--color-stroke-secondary); 
+        opacity: 0.9;
+      }
+
+      /* Shield Button Specific Styles (48px) - Now Black Background */
+      .btn-action-mobile.shield-button-mobile {
+        width: 48px;
+        height: 48px;
+        background-color: rgba(var(--color-stroke-primary-rgb), 0.6); /* Black background */
+        border-color: var(--color-background); /* Light border for contrast */
+        color: var(--color-background); /* Light icon color */
+      }
+      .btn-action-mobile.shield-button-mobile:hover:not(:disabled) {
+        background-color: rgba(var(--color-stroke-primary-rgb), 0.8);
+      }
+      .btn-action-mobile.shield-button-mobile:active:not(:disabled) {
+        background-color: rgba(var(--color-stroke-primary-rgb), 1);
+        transform: scale(0.95);
+      }
+      .btn-action-mobile.shield-button-mobile:disabled {
+        background-color: rgba(var(--color-stroke-primary-rgb), 0.3); /* Dimmer black/gray */
+        border-color: rgba(var(--color-stroke-primary-rgb), 0.5);
+        color: rgba(var(--color-background), 0.5); /* Dimmer icon */
+        opacity: 0.7;
+      }
+       .btn-action-mobile.shield-button-mobile.ready { /* If shield needed a specific ready visual (green border) */
+        border-color: var(--color-accent-health); 
+        box-shadow: 0 0 8px var(--color-accent-health);
+      }
+      .btn-action-mobile.shield-button-mobile svg {
+        width: 50%; 
+        height: 50%; 
+      }
+
+
+      .hud-icon-button {
+        background-color: transparent;
+        border: none;
+        color: var(--color-stroke-primary);
+        padding: 4px;
+        border-radius: 4px;
+        transition: background-color 0.15s ease-in-out;
+        pointer-events: auto; /* Ensure clickable */
+      }
+      .hud-icon-button:hover {
+        background-color: rgba(var(--color-stroke-primary-rgb), 0.1);
+      }
+      .hud-icon-button:active {
+        background-color: rgba(var(--color-stroke-primary-rgb), 0.2);
+      }
+      .hud-icon-button svg {
+        width: 20px; /* sm:w-5 */
+        height: 20px; /* sm:h-5 */
+      }
+       @media (min-width: 640px) { /* sm breakpoint */
+        .hud-icon-button svg {
+          width: 24px; /* sm:w-6 */
+          height: 24px; /* sm:h-6 */
+        }
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.1.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "@heroicons/react/": "https://esm.sh/@heroicons/react@^2.2.0/",
+    "uuid": "https://esm.sh/uuid@^11.1.0",
+    "@heroicons/react": "https://esm.sh/@heroicons/react@^2.2.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="noselect">
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <audio id="background-music" src="audio/background-music.mp3" loop type="audio/mpeg"></audio>
+    <audio id="ambient-sound" src="audio/ambient-sound.mp3" loop type="audio/mpeg"></audio>
+    <div id="root"></div>
+    <script type="module" src="index.js"></script>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

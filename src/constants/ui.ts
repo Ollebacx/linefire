@@ -1,0 +1,10 @@
+// ── Design tokens ─────────────────────────────────────────────────────────────
+export const UI_BACKGROUND_NEUTRAL = '#F3F4F6';
+export const UI_STROKE_PRIMARY     = '#111827';
+export const UI_STROKE_SECONDARY   = '#4B5563';
+export const UI_ACCENT_SUBTLE      = '#D1D5DB';
+export const UI_ACCENT_CRITICAL    = '#EF4444';
+export const UI_ACCENT_HEALTH      = '#22C55E';
+export const UI_ACCENT_WARNING     = '#F97316';
+export const UI_ACCENT_SHIELD      = '#3B82F6';
+export const UI_ACCENT_LIGHTNING   = '#00AFFF';
