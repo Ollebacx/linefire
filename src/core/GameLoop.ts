@@ -555,7 +555,13 @@ export class GameLoop {
       currentWaveEnemies += projResult.killCount;
       const prevCombo = comboState.comboCount;
       comboState = registerKill(comboState, projResult.killCount);
-      newPlayer  = { ...newPlayer, comboCount: comboState.comboCount, currentRunKills: newPlayer.currentRunKills + projResult.killCount };
+      const newCombo = comboState.comboCount;
+      newPlayer  = {
+        ...newPlayer,
+        comboCount:        newCombo,
+        currentRunKills:   newPlayer.currentRunKills + projResult.killCount,
+        highestComboCount: Math.max(newPlayer.highestComboCount ?? 0, newCombo),
+      };
       AudioSystem.play('enemy_death');
       // Combo milestone sounds at 5, 10, 20
       const nc = comboState.comboCount;
@@ -868,6 +874,14 @@ export class GameLoop {
 
     // ── 19. Wave title ─────────────────────────────────────────────────────
     let waveTitleTimer = store.waveTitleTimer > 0 ? store.waveTitleTimer - 1 : 0;
+
+    // ── 19.5. Run stats high-water marks ──────────────────────────────────
+    const currentSquadSize = 1 + newPlayer.allies.filter(a => !a.isStranded).length;
+    newPlayer = {
+      ...newPlayer,
+      maxSquadSizeAchieved:       Math.max(newPlayer.maxSquadSizeAchieved ?? 0, currentSquadSize),
+      highestRoundAchievedThisRun: Math.max(newPlayer.highestRoundAchievedThisRun ?? 0, store.round),
+    };
 
     // ── 20. Patch store ────────────────────────────────────────────────────
     useGameStore.getState().applyTickResult({
