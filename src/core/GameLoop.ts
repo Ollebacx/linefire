@@ -581,6 +581,7 @@ export class GameLoop {
             [AllyType.SNIPER]:      WeaponType.SNIPER,
             [AllyType.RPG_SOLDIER]: WeaponType.RPG,
             [AllyType.FLAMER]:      WeaponType.FLAMER,
+            [AllyType.MINIGUNNER]:  WeaponType.MINIGUNNER,
           };
           const pool = store.unlockedAllyTypes
             .map(t => ALLY_TO_WEAPON[t])
@@ -691,6 +692,7 @@ export class GameLoop {
       [AllyType.SNIPER]:      WeaponType.SNIPER,
       [AllyType.RPG_SOLDIER]: WeaponType.RPG,
       [AllyType.FLAMER]:      WeaponType.FLAMER,
+      [AllyType.MINIGUNNER]:  WeaponType.MINIGUNNER,
     };
     const WEAPON_TO_ALLY_MAP: Record<WeaponType, AllyType | undefined> = WEAPON_TO_ALLY;
 
@@ -805,6 +807,7 @@ export class GameLoop {
         [AllyType.SNIPER]:      WeaponType.SNIPER,
         [AllyType.RPG_SOLDIER]: WeaponType.RPG,
         [AllyType.FLAMER]:      WeaponType.FLAMER,
+        [AllyType.MINIGUNNER]:  WeaponType.MINIGUNNER,
       };
       const pool = store.unlockedAllyTypes
         .map(t => ALLY_TO_WPN[t])

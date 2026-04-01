@@ -194,12 +194,13 @@ export interface CollectibleAlly extends GameObject {
 }
 
 export enum WeaponType {
-  PISTOL   = 'PISTOL',   // GUN_GUY, never drops
-  SHOTGUN  = 'SHOTGUN',
-  RIFLEMAN = 'RIFLEMAN',
-  SNIPER   = 'SNIPER',
-  RPG      = 'RPG',
-  FLAMER   = 'FLAMER',
+  PISTOL      = 'PISTOL',      // GUN_GUY, never drops
+  SHOTGUN     = 'SHOTGUN',
+  RIFLEMAN    = 'RIFLEMAN',
+  SNIPER      = 'SNIPER',
+  RPG         = 'RPG',
+  FLAMER      = 'FLAMER',
+  MINIGUNNER  = 'MINIGUNNER',
 }
 
 export interface WeaponDrop extends GameObject {

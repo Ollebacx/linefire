@@ -2,12 +2,13 @@ import type { Position, GameObject } from './geometry';
 import type { AllyType } from './ally';
 
 export enum WeaponType {
-  PISTOL   = 'PISTOL',
-  SHOTGUN  = 'SHOTGUN',
-  RIFLEMAN = 'RIFLEMAN',
-  SNIPER   = 'SNIPER',
-  RPG      = 'RPG',
-  FLAMER   = 'FLAMER',
+  PISTOL      = 'PISTOL',      // GUN_GUY, never drops
+  SHOTGUN     = 'SHOTGUN',
+  RIFLEMAN    = 'RIFLEMAN',
+  SNIPER      = 'SNIPER',
+  RPG         = 'RPG',
+  FLAMER      = 'FLAMER',
+  MINIGUNNER  = 'MINIGUNNER',
 }
 
 export interface Character extends GameObject {

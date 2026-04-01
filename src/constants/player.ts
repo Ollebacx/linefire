@@ -74,12 +74,13 @@ export interface WeaponConfig {
 }
 
 export const WEAPON_CONFIGS: Record<WeaponType, WeaponConfig> = {
-  [WeaponType.PISTOL]:   { label: 'PISTOL',   allyType: undefined,            shootCooldown: 10,  damage: 10,  clipSize: 6,  reloadDuration: 120, color: '#00FFCC', rendererColor: 0x00FFCC },
-  [WeaponType.SHOTGUN]:  { label: 'SHOTGUN',  allyType: AllyType.SHOTGUN,     shootCooldown: 30,  damage: 7,   clipSize: 8,  reloadDuration: 120, color: '#FF2055', rendererColor: 0xFF2055 },
-  [WeaponType.RIFLEMAN]: { label: 'RIFLEMAN', allyType: AllyType.RIFLEMAN,    shootCooldown: 20,  damage: 9,   clipSize: 24, reloadDuration: 108, color: '#00E5FF', rendererColor: 0x00E5FF },
-  [WeaponType.SNIPER]:   { label: 'SNIPER',   allyType: AllyType.SNIPER,      shootCooldown: 70,  damage: 35,  clipSize: 5,  reloadDuration: 150, color: '#CC44FF', rendererColor: 0xCC44FF },
-  [WeaponType.RPG]:      { label: 'RPG',      allyType: AllyType.RPG_SOLDIER, shootCooldown: 160, damage: 40,  clipSize: 3,  reloadDuration: 180, color: '#FF9500', rendererColor: 0xFF9500 },
-  [WeaponType.FLAMER]:   { label: 'FLAMER',   allyType: AllyType.FLAMER,      shootCooldown: 30,  damage: 4,   clipSize: 50, reloadDuration: 90,  color: '#FF6600', rendererColor: 0xFF6600 },
+  [WeaponType.PISTOL]:      { label: 'PISTOL',      allyType: undefined,             shootCooldown: 10,  damage: 10,  clipSize: 6,   reloadDuration: 120, color: '#00FFCC', rendererColor: 0x00FFCC },
+  [WeaponType.SHOTGUN]:     { label: 'SHOTGUN',     allyType: AllyType.SHOTGUN,      shootCooldown: 30,  damage: 7,   clipSize: 8,   reloadDuration: 120, color: '#FF2055', rendererColor: 0xFF2055 },
+  [WeaponType.RIFLEMAN]:    { label: 'RIFLEMAN',    allyType: AllyType.RIFLEMAN,     shootCooldown: 20,  damage: 9,   clipSize: 24,  reloadDuration: 108, color: '#00E5FF', rendererColor: 0x00E5FF },
+  [WeaponType.SNIPER]:      { label: 'SNIPER',      allyType: AllyType.SNIPER,       shootCooldown: 70,  damage: 35,  clipSize: 5,   reloadDuration: 150, color: '#CC44FF', rendererColor: 0xCC44FF },
+  [WeaponType.RPG]:         { label: 'RPG',         allyType: AllyType.RPG_SOLDIER,  shootCooldown: 160, damage: 40,  clipSize: 3,   reloadDuration: 180, color: '#FF9500', rendererColor: 0xFF9500 },
+  [WeaponType.FLAMER]:      { label: 'FLAMER',      allyType: AllyType.FLAMER,       shootCooldown: 30,  damage: 4,   clipSize: 50,  reloadDuration: 90,  color: '#FF6600', rendererColor: 0xFF6600 },
+  [WeaponType.MINIGUNNER]:  { label: 'MINIGUN',     allyType: AllyType.MINIGUNNER,   shootCooldown: 8,   damage: 6,   clipSize: 80,  reloadDuration: 180, color: '#80FF44', rendererColor: 0x80FF44 },
 };
 
 // Weapon → AllyType for combat / visual behavior
