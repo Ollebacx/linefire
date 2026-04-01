@@ -8,7 +8,7 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import type { GameState, Player, Ally, Size, Position, Upgrade, ShieldZone } from '../types';
-import { AllyType, EnemyType, UpgradeType } from '../types';
+import { AllyType, EnemyType, UpgradeType, WeaponType } from '../types';
 
 // Import constants
 import { WORLD_AREA, PLAYER_WORLD_EDGE_MARGIN } from '../constants/world';
@@ -22,6 +22,7 @@ import {
   AIRSTRIKE_MISSILE_COUNT,
 } from '../constants/player';
 import { ALLY_SPAWN_INTERVAL } from '../constants/ally';
+import { WEAPON_DROP_SPAWN_TIMER } from '../constants/player';
 import { ROUND_BASE_ENEMY_COUNT, INITIAL_SPECIAL_ENEMY_SPAWN_STATE, WAVE_TITLE_STAY_DURATION_TICKS, WAVE_TITLE_FADE_OUT_DURATION_TICKS } from '../constants/enemy';
 import { UI_STROKE_PRIMARY } from '../constants/ui';
 import {
@@ -130,6 +131,7 @@ function buildInitialState(gameArea: Size, isTouchDevice: boolean, controlScheme
     airstrikeSpawnTimer: 0,
     shieldAbilityTimer: 0,
     currentChainLevel: 0,
+    allyHealthBonus: 0,
   };
 
   // ── Restore meta-progress (upgrades persist across sessions) ────────────────
@@ -197,6 +199,8 @@ function buildInitialState(gameArea: Size, isTouchDevice: boolean, controlScheme
     gameOverPendingTimer: 0,
     waveTitleText: '',
     waveTitleTimer: 0,
+    weaponDrops: [],
+    weaponDropSpawnTimer: WEAPON_DROP_SPAWN_TIMER,
     tutorialStep: 0,
     tutorialMessages: TUTORIAL_MESSAGES,
     tutorialEntities: { ...INITIAL_TUTORIAL_ENTITIES, tutorialHighlightTarget: null, muzzleFlashes: [], effectParticles: [] },
@@ -229,7 +233,29 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setMousePosition: (pos) => set({ mousePosition: pos }),
 
   // ── Tick result patch (called by GameLoop after systems run)
-  applyTickResult: (partial) => set(s => ({ ...s, ...partial })),
+  applyTickResult: (partial) => set(s => {
+    let extraGold = 0;
+    if (partial.logs) {
+      partial.logs.forEach((newLog, i) => {
+        const oldLog = s.logs[i];
+        if (newLog.isUnlocked && !oldLog?.isUnlocked) {
+          const def = INITIAL_LOG_DEFINITIONS.find(d => d.id === newLog.id);
+          if (def?.rewardGold) extraGold += def.rewardGold;
+        }
+      });
+    }
+    if (extraGold > 0 && partial.player) {
+      partial = {
+        ...partial,
+        player: {
+          ...partial.player,
+          gold: (partial.player.gold ?? s.player.gold) + extraGold,
+          currentRunGoldEarned: (partial.player.currentRunGoldEarned ?? s.player.currentRunGoldEarned) + extraGold,
+        },
+      };
+    }
+    return { ...s, ...partial };
+  }),
 
   // ── Start new round ────────────────────────────────────────────────────────
   startNewRound: (player, roundNumber) => set(s => {
@@ -295,6 +321,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       chainRange:               s.player.chainRange,
       chainDamageMultiplier:    s.player.chainDamageMultiplier,
       currentChainLevel:        s.player.currentChainLevel,
+      allyHealthBonus:          s.player.allyHealthBonus,
       gold:                     s.player.gold,
       kills:                    s.player.kills,
       maxHealth:                s.player.maxHealth,
@@ -329,6 +356,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       pendingInitialSpawns: 0, initialSpawnTickCounter: 0,
       logs: s.logs.map(l => ({ ...l, isUnlocked: false })),
       gameOverPendingTimer: 0, waveTitleText: '', waveTitleTimer: 0,
+      weaponDrops: [], weaponDropSpawnTimer: WEAPON_DROP_SPAWN_TIMER,
       damageTexts: [], muzzleFlashes: [], effectParticles: [],
     };
   }),
@@ -398,6 +426,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       comboTimer: 0, airstrikeAvailable: false, airstrikeActive: false, airstrikesPending: 0, airstrikeSpawnTimer: 0,
       pendingInitialSpawns: 0, initialSpawnTickCounter: 0, logs: newLogs,
       gameOverPendingTimer: 0, waveTitleText: '', waveTitleTimer: 0,
+      weaponDrops: [], weaponDropSpawnTimer: WEAPON_DROP_SPAWN_TIMER,
       damageTexts: [], muzzleFlashes: [], effectParticles: [],
     };
   }),
@@ -491,6 +520,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       comboCount: 0, playerHitTimer: 0, currentRunKills: 0, currentRunTanksDestroyed: 0,
       currentRunGoldEarned: 0, highestComboCount: 0, maxSquadSizeAchieved: 0, kills: 0,
       coinMagnetRange: 40, squadSpacingMultiplier: 1, initialAllyBonus: 0,
+      allyHealthBonus: 0,
+      equippedWeapon: WeaponType.PISTOL, weaponTimer: 0,
     };
     const camX = Math.max(0, Math.min(tp.x + tp.width / 2 - s.gameArea.width / 2, WORLD_AREA.width - s.gameArea.width));
     const camY = Math.max(0, Math.min(tp.y + tp.height / 2 - s.gameArea.height / 2, WORLD_AREA.height - s.gameArea.height));

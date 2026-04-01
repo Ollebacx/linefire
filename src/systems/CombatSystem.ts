@@ -103,17 +103,28 @@ export function playerShoot(
     if (p.currentReloadTimer && p.currentReloadTimer > 0) return { player: p, projectiles, muzzleFlash };
     if (!p.ammoLeftInClip || p.ammoLeftInClip <= 0) return { player: p, projectiles, muzzleFlash };
 
-    projectiles.push({
-      id: uuidv4(),
-      x: playerCenter.x - PROJECTILE_SIZE.width / 2,
-      y: playerCenter.y - PROJECTILE_SIZE.height / 2,
-      ...PROJECTILE_SIZE,
-      velocity: { x: direction.x * projSpeed, y: direction.y * projSpeed },
-      damage, ownerId: p.id, isPlayerProjectile: true, color: UI_STROKE_PRIMARY,
-      causesShake: false, pierceCount: p.piercingRoundsLevel,
-      alreadyChainedTo: [], chainsLeft: p.maxChainTargets,
-      playerChainLightningLevel: p.currentChainLevel,
-    });
+    // Weapon drop may grant multi-shot (shotgun-style)
+    const pCount  = p.weaponProjectileCount ?? 1;
+    const pSpread = p.weaponSpreadAngle     ?? 0;
+    const step    = pCount > 1 ? pSpread / (pCount - 1) : 0;
+
+    for (let i = 0; i < pCount; i++) {
+      const angleOffset = (i - (pCount - 1) / 2) * step;
+      const rad = angleOffset * (Math.PI / 180);
+      const dx = direction.x * Math.cos(rad) - direction.y * Math.sin(rad);
+      const dy = direction.x * Math.sin(rad) + direction.y * Math.cos(rad);
+      projectiles.push({
+        id: uuidv4(),
+        x: playerCenter.x - PROJECTILE_SIZE.width / 2,
+        y: playerCenter.y - PROJECTILE_SIZE.height / 2,
+        ...PROJECTILE_SIZE,
+        velocity: { x: dx * projSpeed, y: dy * projSpeed },
+        damage, ownerId: p.id, isPlayerProjectile: true, color: UI_STROKE_PRIMARY,
+        causesShake: false, pierceCount: p.piercingRoundsLevel,
+        alreadyChainedTo: [], chainsLeft: p.maxChainTargets,
+        playerChainLightningLevel: p.currentChainLevel,
+      });
+    }
 
     p.ammoLeftInClip!--;
     p.shootTimer = effectiveCooldown;

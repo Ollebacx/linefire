@@ -7,15 +7,15 @@
  * Tick rate target: 60 fps (16.67 ms/frame).
  */
 import { v4 as uuidv4 } from 'uuid';
-import type { Player, Ally, Position, Size, GameStatus, Enemy, Projectile } from '../types';
-import { EnemyType, AllyType } from '../types';
+import type { Player, Ally, Position, Size, GameStatus, Enemy, Projectile, WeaponDrop } from '../types';
+import { EnemyType, AllyType, WeaponType } from '../types';
 import type { InputSnapshot } from '../systems/MovementSystem';
 import type { ComboState } from '../systems/ComboSystem';
 
 import { applyPlayerMovement, updateCamera, updateAllyMovement, chainAllyLeaders } from '../systems/MovementSystem';
 import { processProjectiles } from '../systems/ProjectileSystem';
 import { playerShoot, allyShoot, tickReload, enemyMeleeAttack, findClosestEnemy, isInsideShieldZone } from '../systems/CombatSystem';
-import { createEnemy, createCollectibleAlly, determineNextEnemyType } from '../systems/SpawnSystem';
+import { createEnemy, createCollectibleAlly, determineNextEnemyType, createWeaponDrop, WEAPON_DROPPABLE_TYPES } from '../systems/SpawnSystem';
 import { INITIAL_SPAWN_INTERVAL_TICKS } from '../systems/WaveSystem';
 import { tickCombo, registerKill, completeAirstrike } from '../systems/ComboSystem';
 import {
@@ -47,6 +47,8 @@ import {
   AIRSTRIKE_MISSILE_DAMAGE, AIRSTRIKE_MISSILE_AOE_RADIUS, AIRSTRIKE_MISSILE_SPEED,
   AIRSTRIKE_PROJECTILE_SIZE, AIRSTRIKE_MISSILE_INTERVAL_TICKS, AIRSTRIKE_COMBO_THRESHOLD,
   ENEMY_PROJECTILE_SPEED, RPG_PROJECTILE_SIZE, PROJECTILE_SIZE, PLAYER_HIT_FLASH_DURATION_TICKS,
+  WEAPON_CONFIGS, WEAPON_DROP_KILL_CHANCE, WEAPON_HELD_TTL, WEAPON_DROP_SPAWN_TIMER,
+  GUN_GUY_CLIP_SIZE, GUN_GUY_RELOAD_TIME,
 } from '../constants/player';
 import {
   ENEMY_ROCKET_TANK_PROJECTILE_SPEED, ENEMY_ROCKET_TANK_AOE_RADIUS,
@@ -493,6 +495,11 @@ export class GameLoop {
 
     // ── 8. Gold / coin magnet ──────────────────────────────────────────────
     let newGoldPiles = [...store.goldPiles, ...projResult.newGoldPiles];
+
+    // Tick weapon drop TTLs (initialize here so kills in step 9 can push to it)
+    let newWeaponDrops: WeaponDrop[] = (store.weaponDrops ?? [])
+      .map(d => ({ ...d, timeToLive: d.timeToLive - DELTA_SECONDS }))
+      .filter(d => d.timeToLive > 0);
     const newGoldPilesResult: typeof newGoldPiles = [];
     let goldCollectedThisFrame = false;
     for (const gp of newGoldPiles) {
@@ -555,6 +562,16 @@ export class GameLoop {
     }
     if (projResult.tankKillCount > 0) {
       newPlayer = { ...newPlayer, currentRunTanksDestroyed: (newPlayer.currentRunTanksDestroyed ?? 0) + projResult.tankKillCount };
+    }
+
+    // Weapon drop on kill (7% per kill, capped at 1 drop per tick)
+    if (!isTutorial && projResult.killCount > 0 && projResult.newGoldPiles.length > 0) {
+      const dropRollMax = WEAPON_DROP_KILL_CHANCE + (store.availableUpgrades.find(u => u.id as string === 'WEAPON_TIER')?.currentLevel ?? 0) * 0.03;
+      if (Math.random() < dropRollMax) {
+        const gp  = projResult.newGoldPiles[Math.floor(Math.random() * projResult.newGoldPiles.length)];
+        const wt  = WEAPON_DROPPABLE_TYPES[Math.floor(Math.random() * WEAPON_DROPPABLE_TYPES.length)];
+        newWeaponDrops.push(createWeaponDrop(wt, gp.x, gp.y, store.worldArea));
+      }
     }
 
     // ── 10. Airstrike tick ─────────────────────────────────────────────────
@@ -647,6 +664,77 @@ export class GameLoop {
       return { ...a, isStranded: false, leaderId: lastActive ? lastActive.id : newPlayer.id };
     });
 
+    // ── 12.5. Weapon drop pickup + held-weapon timer ───────────────────────
+    newWeaponDrops = newWeaponDrops.filter(drop => {
+      if (!checkCollision(newPlayer, drop)) return true;
+      const cfg = WEAPON_CONFIGS[drop.weaponType];
+      // Snapshot pistol stats only if not already holding a weapon
+      const snapshot = newPlayer.weaponBaseSnapshot ?? {
+        damage:                 newPlayer.damage,
+        shootCooldown:          newPlayer.shootCooldown,
+        clipSize:               newPlayer.clipSize ?? GUN_GUY_CLIP_SIZE,
+        reloadDuration:         newPlayer.reloadDuration ?? GUN_GUY_RELOAD_TIME,
+        piercingRoundsLevel:    newPlayer.piercingRoundsLevel,
+        projectileSpeedModifier: newPlayer.projectileSpeedModifier,
+      };
+      newPlayer = {
+        ...newPlayer,
+        equippedWeapon:         drop.weaponType,
+        weaponTimer:            WEAPON_HELD_TTL,
+        weaponBaseSnapshot:     snapshot,
+        damage:                 cfg.damage,
+        shootCooldown:          cfg.shootCooldown,
+        clipSize:               cfg.clipSize,
+        ammoLeftInClip:         cfg.clipSize,
+        reloadDuration:         cfg.reloadDuration,
+        currentReloadTimer:     0,
+        piercingRoundsLevel:    snapshot.piercingRoundsLevel    + (cfg.piercingBonus       ?? 0),
+        projectileSpeedModifier: snapshot.projectileSpeedModifier + (cfg.projectileSpeedBonus ?? 0),
+        weaponProjectileCount:  cfg.projectileCount,
+        weaponSpreadAngle:      cfg.projectileSpreadAngle,
+      };
+      newDamageTexts.push({
+        id: uuidv4(), text: `⚡ ${cfg.label}`,
+        x: newPlayer.x + newPlayer.width / 2,
+        y: newPlayer.y - 22,
+        timer: 90, color: cfg.color, velocityY: -0.9,
+        fontSize: 16, fontWeight: 'bold',
+      });
+      AudioSystem.play('ally_collect');
+      return false;
+    });
+
+    // Tick held-weapon expiry
+    if (!isTutorial && newPlayer.weaponTimer > 0) {
+      newPlayer = { ...newPlayer, weaponTimer: newPlayer.weaponTimer - DELTA_SECONDS };
+      if (newPlayer.weaponTimer <= 0 && newPlayer.weaponBaseSnapshot) {
+        const snap = newPlayer.weaponBaseSnapshot;
+        newPlayer = {
+          ...newPlayer,
+          equippedWeapon:         WeaponType.PISTOL,
+          weaponTimer:            0,
+          weaponBaseSnapshot:     undefined,
+          damage:                 snap.damage,
+          shootCooldown:          snap.shootCooldown,
+          clipSize:               snap.clipSize,
+          ammoLeftInClip:         snap.clipSize,
+          reloadDuration:         snap.reloadDuration,
+          currentReloadTimer:     0,
+          piercingRoundsLevel:    snap.piercingRoundsLevel,
+          projectileSpeedModifier: snap.projectileSpeedModifier,
+          weaponProjectileCount:  undefined,
+          weaponSpreadAngle:      undefined,
+        };
+        newDamageTexts.push({
+          id: uuidv4(), text: '🔫 PISTOL',
+          x: newPlayer.x + newPlayer.width / 2,
+          y: newPlayer.y - 20,
+          timer: 75, color: '#00FFCC', velocityY: -0.6,
+          fontSize: 14, fontWeight: '300',
+        });
+      }
+    }
+
     // ── 13. Enemy spawn (gradual) ──────────────────────────────────────────
     if (!isTutorial && pendingInitialSpawns > 0) {
       initialSpawnTickCounter--;
@@ -673,6 +761,16 @@ export class GameLoop {
         nextAllyTypeForStore = allTypes[Math.floor(Math.random() * allTypes.length)];
       }
       newNextAllySpawnTimer = ALLY_SPAWN_INTERVAL;
+    }
+
+    // ── 14.5. Timed weapon drop spawn ─────────────────────────────────────
+    let newWeaponDropSpawnTimer = (store.weaponDropSpawnTimer ?? WEAPON_DROP_SPAWN_TIMER) - DELTA_SECONDS;
+    if (newWeaponDropSpawnTimer <= 0 && !isTutorial) {
+      const wt = WEAPON_DROPPABLE_TYPES[Math.floor(Math.random() * WEAPON_DROPPABLE_TYPES.length)];
+      const spawnX = store.camera.x + 80 + Math.random() * Math.max(1, store.gameArea.width  - 160);
+      const spawnY = store.camera.y + 80 + Math.random() * Math.max(1, store.gameArea.height - 160);
+      newWeaponDrops.push(createWeaponDrop(wt, spawnX, spawnY, store.worldArea));
+      newWeaponDropSpawnTimer = WEAPON_DROP_SPAWN_TIMER;
     }
 
     // ── 15. Wave progression ───────────────────────────────────────────────
@@ -748,6 +846,8 @@ export class GameLoop {
       airstrikeSpawnTimer,
       comboTimer:           timedCombo.comboTimer,
       waveTitleTimer,
+      weaponDrops:          newWeaponDrops,
+      weaponDropSpawnTimer: newWeaponDropSpawnTimer,
     });
   }
 

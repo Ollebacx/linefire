@@ -3,6 +3,7 @@ export type { Position, Size, GameObject } from './geometry';
 
 // Character types
 export type { Character, Player } from './player';
+export { WeaponType } from './player';
 
 // Enemy types
 export type { Enemy } from './enemy';
@@ -34,6 +35,7 @@ export type {
   GameStatus,
   GameState,
   GoldPile,
+  WeaponDrop,
   SceneryObject,
   TutorialEntities,
   TutorialHighlightTarget,

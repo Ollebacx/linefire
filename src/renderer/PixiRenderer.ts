@@ -13,13 +13,13 @@ import { Application, Container, Graphics, Text } from 'pixi.js';
 import type {
   GameState, Player, Ally, Enemy, Projectile, GoldPile,
   CollectibleAlly, ShieldZone, ChainLightningEffect,
-  DamageText, MuzzleFlash, EffectParticle, Position, Size,
+  DamageText, MuzzleFlash, EffectParticle, Position, Size, WeaponDrop,
 } from '../types';
-import { EnemyType, AllyType } from '../types';
+import { EnemyType, AllyType, WeaponType } from '../types';
 import {
   PLAYER_SIZE,
   PROJECTILE_SIZE, RPG_PROJECTILE_SIZE, FLAMER_PROJECTILE_SIZE,
-  PLAYER_HIT_FLASH_DURATION_TICKS,
+  PLAYER_HIT_FLASH_DURATION_TICKS, WEAPON_CONFIGS,
 } from '../constants/player';
 import { ALLY_SIZE, COLLECTIBLE_ALLY_SIZE } from '../constants/ally';
 import { ENEMY_BOSS_WARN_TICKS } from '../constants/enemy';
@@ -78,6 +78,7 @@ export class PixiRenderer {
   // Object pools
   private projPool    = new Map<string, Graphics>();
   private goldPool    = new Map<string, Graphics>();
+  private dropPool    = new Map<string, Graphics>();
   private shieldPool  = new Map<string, Graphics>();
   private entityPool  = new Map<string, EntityEntry>();
   private chainPool   = new Map<string, Graphics>();
@@ -202,6 +203,7 @@ export class PixiRenderer {
     state.goldPiles.forEach(g => this._gold(g));
     state.shieldZones.forEach(s => this._shield(s));
     state.collectibleAllies.forEach(ca => this._collectibleAlly(ca));
+    state.weaponDrops?.forEach(wd => this._weaponDrop(wd));
     state.enemies.forEach(e => this._enemy(e));
     this._player(state.player, gameStatus, state.gameOverPendingTimer);
     state.player.allies.forEach(a => this._ally(a));
@@ -214,6 +216,7 @@ export class PixiRenderer {
     this.trailPool.forEach((g, id)   => { if (!this.activeTrailIds.has(id))    g.visible = false; });
     this.projPool.forEach((g, id)    => { if (!this.activeIds.has(id))         g.visible = false; });
     this.goldPool.forEach((g, id)    => { if (!this.activeIds.has(id))         g.visible = false; });
+    this.dropPool.forEach((g, id)    => { if (!this.activeIds.has(id))         g.visible = false; });
     this.shieldPool.forEach((g, id)  => { if (!this.activeIds.has(id))         g.visible = false; });
     this.entityPool.forEach((e, id)  => {
       if (!this.activeIds.has(id)) { e.body.visible = false; e.hud.visible = false; }
@@ -361,9 +364,52 @@ export class PixiRenderer {
     hud.clear();
   }
 
+  // ── Weapon Drop ──────────────────────────────────────────────────────────────────────────────
+  private _weaponDrop(drop: WeaponDrop): void {
+    this.activeIds.add(drop.id);
+    let g = this.dropPool.get(drop.id);
+    if (!g) {
+      g = new Graphics();
+      this.goldLayer.addChild(g);
+      this.dropPool.set(drop.id, g);
+    }
+    g.visible = true;
+    g.clear();
+
+    const cx = drop.x + drop.width  / 2;
+    const cy = drop.y + drop.height / 2;
+    const r  = drop.width / 2 * 0.9;
+    const cfg = WEAPON_CONFIGS[drop.weaponType];
+    const color = cfg.rendererColor;
+
+    // Blink fast when < 5s remaining
+    const blink = drop.timeToLive < 5
+      ? 0.35 + 0.65 * Math.abs(Math.sin(Date.now() * 0.008))
+      : 0.8;
+
+    g.x = cx; g.y = cy; g.alpha = blink;
+
+    // Outer glow ring
+    g.circle(0, 0, r * 1.75).stroke({ color, alpha: 0.22, width: 1.2 });
+    // Diamond body
+    g.poly([0, -r, r, 0, 0, r, -r, 0])
+      .fill({ color, alpha: 0.18 })
+      .stroke({ color, alpha: 0.92, width: 1.5 });
+    // Inner cross (weapon icon)
+    g.moveTo(-r * 0.48, 0).lineTo(r * 0.48, 0).stroke({ color, alpha: 0.85, width: 2 });
+    g.moveTo(0, -r * 0.38).lineTo(0, r * 0.38).stroke({ color, alpha: 0.85, width: 2 });
+
+    // TTL countdown arc (drawn along the outer ring)
+    const ttlRatio = Math.max(0, drop.timeToLive / drop.maxTimeToLive);
+    if (ttlRatio < 1) {
+      const startAngle = -Math.PI / 2;
+      const endAngle   = startAngle + ttlRatio * Math.PI * 2;
+      g.arc(0, 0, r * 1.75, startAngle, endAngle).stroke({ color, alpha: 0.65, width: 2 });
+    }
+  }
+
   // ── Collectible Ally ─────────────────────────────────────────────────────────────────────────
-  private _collectibleAlly(ca: CollectibleAlly): void {
-    const { body, hud } = this._entity(ca.id);
+  private _collectibleAlly(ca: CollectibleAlly): void {    const { body, hud } = this._entity(ca.id);
     body.zIndex = ca.y + ca.height;
 
     const cx = ca.x + COLLECTIBLE_ALLY_SIZE.width  / 2;

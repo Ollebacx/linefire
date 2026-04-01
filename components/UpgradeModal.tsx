@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Upgrade, Player, UpgradeType, LogEntry } from '../types';
 import { LockClosedIcon } from '@heroicons/react/24/solid';
+import { INITIAL_LOG_DEFINITIONS } from '../constants';
 
 interface UpgradeModalProps {
   player: Player;
@@ -11,7 +12,7 @@ interface UpgradeModalProps {
   onGoToMenu: () => void;
 }
 
-type ShopTab = 'COMBAT' | 'SQUAD' | 'AIRSTRIKE' | 'SHIELD' | 'ALLIES';
+type ShopTab = 'COMBAT' | 'SQUAD' | 'AIRSTRIKE' | 'SHIELD' | 'ALLIES' | 'MEDALS';
 
 const TABS: { id: ShopTab; label: string }[] = [
   { id: 'COMBAT',    label: 'COMBAT'     },
@@ -19,11 +20,12 @@ const TABS: { id: ShopTab; label: string }[] = [
   { id: 'AIRSTRIKE', label: 'AIR STRIKE' },
   { id: 'SHIELD',    label: 'SHIELD'     },
   { id: 'ALLIES',    label: 'ALLIES'     },
+  { id: 'MEDALS',    label: 'MEDALS'     },
 ];
 
-const TAB_UPGRADES: Record<ShopTab, UpgradeType[]> = {
-  COMBAT:    [UpgradeType.GLOBAL_DAMAGE_BOOST, UpgradeType.GLOBAL_FIRE_RATE_BOOST, UpgradeType.PLAYER_PROJECTILE_SPEED, UpgradeType.PLAYER_PIERCING_ROUNDS, UpgradeType.CHAIN_LIGHTNING_LEVEL],
-  SQUAD:     [UpgradeType.PLAYER_MAX_HEALTH, UpgradeType.PLAYER_SPEED, UpgradeType.GOLD_MAGNET, UpgradeType.SQUAD_SPACING, UpgradeType.INITIAL_ALLY_BOOST],
+const TAB_UPGRADES: Record<Exclude<ShopTab, 'MEDALS'>, UpgradeType[]> = {
+  COMBAT:    [UpgradeType.GLOBAL_DAMAGE_BOOST, UpgradeType.GLOBAL_FIRE_RATE_BOOST, UpgradeType.PLAYER_PROJECTILE_SPEED, UpgradeType.PLAYER_PIERCING_ROUNDS, UpgradeType.CHAIN_LIGHTNING_LEVEL, UpgradeType.WEAPON_TIER],
+  SQUAD:     [UpgradeType.PLAYER_MAX_HEALTH, UpgradeType.PLAYER_SPEED, UpgradeType.GOLD_MAGNET, UpgradeType.SQUAD_SPACING, UpgradeType.INITIAL_ALLY_BOOST, UpgradeType.ALLY_HEALTH_BOOST],
   AIRSTRIKE: [UpgradeType.AIRSTRIKE_MISSILE_COUNT, UpgradeType.AIRSTRIKE_DAMAGE, UpgradeType.AIRSTRIKE_AOE],
   SHIELD:    [UpgradeType.UNLOCK_SHIELD_ABILITY, UpgradeType.SHIELD_DURATION, UpgradeType.SHIELD_RADIUS, UpgradeType.SHIELD_COOLDOWN_REDUCTION],
   ALLIES:    [UpgradeType.UNLOCK_SNIPER_ALLY, UpgradeType.UNLOCK_RPG_ALLY, UpgradeType.UNLOCK_FLAMER_ALLY, UpgradeType.UNLOCK_MINIGUNNER_ALLY],
@@ -51,18 +53,20 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
     return { locked, maxed, afford, disabled: locked || maxed || !afford };
   };
 
-  const tabIds      = TAB_UPGRADES[activeTab];
+  const tabIds      = activeTab !== 'MEDALS' ? TAB_UPGRADES[activeTab] : [];
   const tabUpgrades = tabIds.map(id => upgrades.find(u => u.id === id)).filter(Boolean) as Upgrade[];
   const focused     = (focusedId ? upgrades.find(u => u.id === focusedId) : null) ?? tabUpgrades[0] ?? null;
   const unlockedCount = logs.filter(l => l.isUnlocked).length;
 
-  const tabHasBuyable = (tab: ShopTab) =>
-    TAB_UPGRADES[tab].some(tid => {
+  const tabHasBuyable = (tab: ShopTab) => {
+    if (tab === 'MEDALS') return false;
+    return TAB_UPGRADES[tab].some(tid => {
       const u = upgrades.find(u => u.id === tid);
       if (!u) return false;
       const { locked, maxed, afford } = getState(u);
       return !locked && !maxed && afford;
     });
+  };
 
   return (
     <div style={{
@@ -133,6 +137,69 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
       {/* MAIN CONTENT */}
       <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: 'clamp(14px,3vw,24px) clamp(16px,4vw,32px)', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
+        {activeTab === 'MEDALS' ? (
+          /* ── MEDALS GRID ───────────────────────────────────────────────── */
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(clamp(160px,26vw,220px), 1fr))', gap: 'clamp(8px,2vw,12px)' }}>
+            {INITIAL_LOG_DEFINITIONS.map(def => {
+              const logEntry = logs.find(l => l.id === def.id);
+              const earned   = logEntry?.isUnlocked ?? false;
+              const IconComp = def.icon;
+              return (
+                <div
+                  key={def.id}
+                  style={{
+                    background: earned ? 'rgba(0,229,255,0.05)' : 'transparent',
+                    border: `1px solid ${earned ? 'rgba(0,229,255,0.4)' : 'rgba(30,42,64,0.7)'}`,
+                    borderRadius: 10,
+                    padding: 'clamp(10px,2vw,14px) clamp(10px,2vw,14px)',
+                    display: 'flex', flexDirection: 'column', gap: 6,
+                    boxShadow: earned ? '0 0 14px rgba(0,229,255,0.1)' : 'none',
+                    opacity: earned ? 1 : 0.55,
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{
+                      width: 32, height: 32, borderRadius: 6, flexShrink: 0,
+                      background: earned ? 'rgba(0,229,255,0.1)' : 'rgba(30,42,64,0.5)',
+                      border: `1px solid ${earned ? 'rgba(0,229,255,0.3)' : 'rgba(30,42,64,0.9)'}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {earned
+                        ? <IconComp style={{ width: 16, height: 16, color: CYAN }}/>
+                        : <LockClosedIcon style={{ width: 14, height: 14, color: 'rgba(226,232,240,0.2)' }}/>
+                      }
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ margin: 0, fontSize: 'clamp(0.62rem,1.5vw,0.72rem)', fontWeight: earned ? 400 : 300, color: earned ? CYAN : 'rgba(226,232,240,0.4)', letterSpacing: '0.05em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {def.name}
+                      </p>
+                      {earned && (
+                        <p style={{ margin: 0, fontSize: '0.6rem', fontWeight: 600, color: AMBER, letterSpacing: '0.06em' }}>
+                          EARNED ✓
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <p style={{ margin: 0, fontSize: 'clamp(0.58rem,1.4vw,0.66rem)', fontWeight: 300, color: 'rgba(226,232,240,0.45)', lineHeight: 1.45 }}>
+                    {def.description}
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, paddingTop: 6, borderTop: '1px solid rgba(255,149,0,0.12)' }}>
+                    <svg width="10" height="10" viewBox="0 0 20 20" fill="none">
+                      <circle cx="10" cy="10" r="8" stroke="#FF9500" strokeWidth="1.5"/>
+                      <line x1="7" y1="10" x2="13" y2="10" stroke="#FF9500" strokeWidth="1.5" strokeLinecap="round"/>
+                      <line x1="10" y1="7" x2="10" y2="13" stroke="#FF9500" strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                    <span style={{ fontSize: '0.62rem', fontWeight: earned ? 400 : 300, color: earned ? AMBER : 'rgba(255,149,0,0.4)', letterSpacing: '0.04em' }}>
+                      {def.rewardDescription ?? ''}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <>
         {/* Card grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(clamp(108px,21vw,148px), 1fr))', gap: 'clamp(8px,2vw,12px)' }}>
           {tabUpgrades.map(upgrade => {
@@ -214,6 +281,9 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
             </p>
           </div>
         )}
+          </>
+        )}
+
       </div>
 
       {/* MILESTONES STRIP */}

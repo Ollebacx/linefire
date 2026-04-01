@@ -1,6 +1,15 @@
 import type { Position, GameObject } from './geometry';
 import type { AllyType } from './ally';
 
+export enum WeaponType {
+  PISTOL        = 'PISTOL',
+  SMG           = 'SMG',
+  ASSAULT_RIFLE = 'ASSAULT_RIFLE',
+  SHOTGUN       = 'SHOTGUN',
+  LMG           = 'LMG',
+  SNIPER        = 'SNIPER',
+}
+
 export interface Character extends GameObject {
   health: number;
   maxHealth: number;
@@ -73,4 +82,21 @@ export interface Player extends Character {
   chainRange: number;
   chainDamageMultiplier: number;
   currentChainLevel: number;
+
+  // Ally survivability upgrade
+  allyHealthBonus: number;
+
+  // Weapon drop system
+  equippedWeapon: WeaponType;
+  weaponTimer: number;
+  weaponBaseSnapshot?: {
+    damage: number;
+    shootCooldown: number;
+    clipSize: number;
+    reloadDuration: number;
+    piercingRoundsLevel: number;
+    projectileSpeedModifier: number;
+  };
+  weaponProjectileCount?: number;
+  weaponSpreadAngle?: number;
 }

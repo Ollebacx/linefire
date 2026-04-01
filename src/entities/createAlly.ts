@@ -35,7 +35,7 @@ export function addAllyToPlayer(
   _globalDamageMod = 0,
   _globalFireRateMod = 1.0,
 ): void {
-  const baseMaxHealth = ALLY_INITIAL_HEALTH;
+  const baseMaxHealth = ALLY_INITIAL_HEALTH + (playerState.allyHealthBonus ?? 0);
   type AllyBase = Omit<Ally, 'id' | 'x' | 'y' | 'targetId' | 'leaderId' | 'pathHistory' | 'color' | 'lastShootingDirection' | 'ammoLeftInClip' | 'clipSize' | 'reloadDuration' | 'currentReloadTimer'> & Partial<Pick<Ally, 'ammoLeftInClip' | 'clipSize' | 'reloadDuration' | 'currentReloadTimer'>>;
 
   let newAllyBase: AllyBase;

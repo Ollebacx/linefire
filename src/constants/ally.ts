@@ -12,7 +12,7 @@ import {
 export const ALLY_SIZE: Size              = { width: 24, height: 24 };
 export const ALLY_SPEED                   = PLAYER_ALLY_PROJECTILE_SPEED * 0.9; // Inherits from player projectile speed constant
 export const ALLY_LERP_FACTOR             = 0.15;
-export const ALLY_INITIAL_HEALTH          = 1;  // one-hit-kill
+export const ALLY_INITIAL_HEALTH          = 3;  // survives a few hits
 export const ALLY_TRAIL_FOLLOW_DISTANCE   = 35;
 export const ALLY_PICKUP_HEALTH_RESTORE   = 5;
 export const ALLY_SPAWN_INTERVAL          = 30; // seconds between collectibles

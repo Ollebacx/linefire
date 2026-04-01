@@ -1,6 +1,7 @@
 
 import React from 'react';
-import { Player, GameState, TutorialHighlightTarget, AllyType } from '../types';
+import { Player, GameState, TutorialHighlightTarget, AllyType, WeaponType } from '../types';
+import { WEAPON_CONFIGS } from '../constants';
 import { PauseIcon, PlayIcon, SpeakerWaveIcon, SpeakerXMarkIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
 import { UI_STROKE_PRIMARY, UI_BACKGROUND_NEUTRAL, UI_ACCENT_CRITICAL, UI_STROKE_SECONDARY, UI_ACCENT_SUBTLE, UI_ACCENT_HEALTH, UI_ACCENT_WARNING, PLAYER_HIT_FLASH_DURATION_TICKS, AIRSTRIKE_COMBO_THRESHOLD } from '../constants';
 import SoundSettingsPanel from './SoundSettingsPanel';
@@ -198,6 +199,23 @@ export const HUD: React.FC<HUDProps> = ({
         pointerEvents: 'none',
         gap: '10px',
       }}>
+        {/* WEAPON INDICATOR */}
+        {player.equippedWeapon && player.equippedWeapon !== WeaponType.PISTOL && (
+          <>
+            <div style={slotCard(true)}>
+              <div style={{
+                ...val, fontSize: '0.84rem',
+                color: WEAPON_CONFIGS[player.equippedWeapon]?.color ?? '#00FFCC',
+                textShadow: `0 0 10px ${WEAPON_CONFIGS[player.equippedWeapon]?.color ?? '#00FFCC'}80`,
+              }}>
+                {player.weaponTimer > 0 ? `${Math.ceil(player.weaponTimer)}s` : 'ACTIVE'}
+              </div>
+              <div style={lbl}>{WEAPON_CONFIGS[player.equippedWeapon]?.label ?? 'WEAPON'}</div>
+            </div>
+            <div style={{ width: '1px', height: '32px', alignSelf: 'center', background: 'rgba(0,229,255,0.10)' }} />
+          </>
+        )}
+
         {/* SUPPORT */}
         <div className={getHighlightClass('allyTimer')}
           style={slotCard(nextAllySpawnTimer <= 0 || nextAllySpawnTimer >= 9999)}>

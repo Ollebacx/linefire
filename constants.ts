@@ -1,6 +1,6 @@
 
 
-import { Size, Player, Upgrade, UpgradeType, AllyType, ChampionChoice, EnemyType, LogDefinition, LogId, TutorialEntities, TutorialHighlightTarget, GameState } from './types';
+import { Size, Player, Upgrade, UpgradeType, AllyType, ChampionChoice, EnemyType, LogDefinition, LogId, TutorialEntities, TutorialHighlightTarget, GameState, WeaponType } from './types';
 import {
     HeartIcon, BoltIcon, ArrowsPointingInIcon, UserPlusIcon, FunnelIcon, UserGroupIcon,
     CheckIcon, ShieldCheckIcon, BanknotesIcon, UsersIcon, LockClosedIcon, AcademicCapIcon, StarIcon,
@@ -19,6 +19,39 @@ export const UI_ACCENT_WARNING = '#FF9500';     // Neon amber
 export const UI_ACCENT_SHIELD = '#00AAFF';      // Neon blue
 export const UI_ACCENT_LIGHTNING = '#00E5FF';   // Electric cyan
 
+// ── Weapon Configs ────────────────────────────────────────────────────────────
+export interface WeaponConfig {
+  label: string;
+  shootCooldown: number;    // seconds between shots (at globalFireRateMod=1)
+  damage: number;           // base damage per hit
+  clipSize: number;
+  reloadDuration: number;   // seconds
+  projectileCount?: number; // multi-shot (shotgun)
+  projectileSpreadAngle?: number;
+  piercingBonus?: number;   // added to player.piercingRoundsLevel
+  projectileSpeedBonus?: number; // added to player.projectileSpeedModifier
+  color: string;            // CSS color for HUD/UI
+  rendererColor: number;    // hex int for PixiJS
+}
+
+export const WEAPON_CONFIGS: Record<WeaponType, WeaponConfig> = {
+  [WeaponType.PISTOL]:        { label: 'PISTOL',  shootCooldown: 0.45, damage: 18,  clipSize: 12, reloadDuration: 1.2, color: '#00FFCC', rendererColor: 0x00FFCC },
+  [WeaponType.SMG]:           { label: 'SMG',     shootCooldown: 0.09, damage: 9,   clipSize: 32, reloadDuration: 1.5, color: '#FF9500', rendererColor: 0xFF9500 },
+  [WeaponType.ASSAULT_RIFLE]: { label: 'AR-15',   shootCooldown: 0.20, damage: 25,  clipSize: 22, reloadDuration: 1.8, piercingBonus: 1, color: '#00E5FF', rendererColor: 0x00E5FF },
+  [WeaponType.SHOTGUN]:       { label: 'SHOTGUN', shootCooldown: 0.65, damage: 18,  clipSize: 6,  reloadDuration: 2.0, projectileCount: 5, projectileSpreadAngle: 40, color: '#FF2055', rendererColor: 0xFF2055 },
+  [WeaponType.LMG]:           { label: 'LMG',     shootCooldown: 0.07, damage: 8,   clipSize: 60, reloadDuration: 3.0, color: '#80FF44', rendererColor: 0x80FF44 },
+  [WeaponType.SNIPER]:        { label: 'SNIPER',  shootCooldown: 1.10, damage: 130, clipSize: 4,  reloadDuration: 2.5, piercingBonus: 3, projectileSpeedBonus: 0.8, color: '#CC44FF', rendererColor: 0xCC44FF },
+};
+
+export const WEAPON_DROP_SIZE         = { width: 26, height: 26 };
+export const WEAPON_DROP_TTL          = 15;    // seconds before ground drop expires
+export const WEAPON_HELD_TTL          = 45;    // seconds weapon is held after pickup
+export const WEAPON_DROP_SPAWN_TIMER  = 25;    // seconds between timed drops
+export const WEAPON_DROP_KILL_CHANCE  = 0.07;  // 7% per kill
+export const WEAPON_DROPPABLE_TYPES: WeaponType[] = [
+  WeaponType.SMG, WeaponType.ASSAULT_RIFLE, WeaponType.SHOTGUN,
+  WeaponType.LMG, WeaponType.SNIPER,
+];
 
 export const WORLD_WIDTH = 2000;
 export const WORLD_HEIGHT = 1500;
@@ -46,7 +79,7 @@ export const GUN_GUY_RELOAD_TIME = 120;
 export const ALLY_SIZE: Size = { width: 24, height: 24 };
 export const ALLY_SPEED = PLAYER_SPEED * 0.9;
 export const ALLY_LERP_FACTOR = 0.15;
-export const ALLY_INITIAL_HEALTH = 1; // Allies die in one hit
+export const ALLY_INITIAL_HEALTH = 3; // survives a few hits
 export const ALLY_TRAIL_FOLLOW_DISTANCE = 35;
 export const ALLY_PICKUP_HEALTH_RESTORE = 5;
 
@@ -88,8 +121,8 @@ export const ALLY_RIFLEMAN_COOLDOWN = 20;
 export const ALLY_RIFLEMAN_RANGE = 520;
 export const ALLY_RIFLEMAN_PROJECTILE_SPEED_MULTIPLIER = 1.3;
 
-export const PROJECTILE_SIZE: Size = { width: 6, height: 6 };
-export const RPG_PROJECTILE_SIZE: Size = { width: 12, height: 3 }; // Changed width from 16 to 12
+export const PROJECTILE_SIZE: Size = { width: 10, height: 10 };
+export const RPG_PROJECTILE_SIZE: Size   = { width: 14, height: 4  }; // Changed width from 16 to 12
 export const FLAMER_PROJECTILE_SIZE: Size = { width: 16, height: 16 };
 export const AIRSTRIKE_PROJECTILE_SIZE: Size = { width: 10, height: 22 };
 
@@ -398,6 +431,22 @@ export const INITIAL_UPGRADES: Upgrade[] = [
         }};
     },
   },
+  // Ally Survivability
+  {
+    id: UpgradeType.ALLY_HEALTH_BOOST,
+    name: 'Ally Armor',
+    description: '+2 HP to all allies per level. Allies spawn with more health and survive longer.',
+    baseCost: 800, cost: 800, currentLevel: 0, maxLevel: 5, costScalingFactor: 1.8, icon: ShieldCheckIcon,
+    apply: (player: Player, currentCost: number) => ({ player: { ...player, allyHealthBonus: (player.allyHealthBonus ?? 0) + 2, gold: player.gold - currentCost } }),
+  },
+  // Drop Luck: increases weapon drop chance
+  {
+    id: UpgradeType.WEAPON_TIER,
+    name: 'Drop Luck',
+    description: '+3% weapon drop chance per level. More chances to find powerful weapons during combat.',
+    baseCost: 1200, cost: 1200, currentLevel: 0, maxLevel: 4, costScalingFactor: 1.6, icon: FireIcon,
+    apply: (player: Player, currentCost: number) => ({ player: { ...player, gold: player.gold - currentCost } }),
+  },
   // Ally Unlocks (Adjusted Costs)
   {
     id: UpgradeType.UNLOCK_SNIPER_ALLY,
@@ -487,6 +536,11 @@ export const INITIAL_PLAYER_STATE: Player = {
   chainRange: CHAIN_LIGHTNING_BASE_RANGE,
   chainDamageMultiplier: CHAIN_LIGHTNING_BASE_DAMAGE_MULTIPLIER,
   currentChainLevel: 0,
+  // Ally survivability
+  allyHealthBonus: 0,
+  // Weapon drop system
+  equippedWeapon: WeaponType.PISTOL,
+  weaponTimer: 0,
 };
 
 export const ROUND_BASE_ENEMY_COUNT = 10;
@@ -557,21 +611,21 @@ export const MAX_CONCURRENT_SPECIAL_ENEMIES_ROUND_6_10 = 1;
 export const MAX_CONCURRENT_SPECIAL_ENEMIES_ROUND_11_PLUS = 3;
 
 export const INITIAL_LOG_DEFINITIONS: LogDefinition[] = [
-  { id: LogId.FIRST_BLOOD, name: 'First Blood', description: 'Neutralize your first hostile vector.', icon: CheckIcon, condition: (p) => p.currentRunKills >= 1 },
-  { id: LogId.NATURAL_BORN_KILLER, name: 'Natural Born Killer', description: 'Neutralize 50 vectors in a single deployment.', icon: BoltIcon, condition: (p) => p.currentRunKills >= 50 },
-  { id: LogId.BLOOD_THIRSTY, name: 'Blood Thirsty', description: 'Neutralize 150 vectors in a single deployment.', icon: BoltIcon, condition: (p) => p.currentRunKills >= 150 },
-  { id: LogId.RAMPAGE, name: 'Rampage', description: 'Neutralize 300 vectors in a single deployment.', icon: BoltIcon, condition: (p) => p.currentRunKills >= 300 },
-  { id: LogId.MASS_MURDERER, name: 'Mass Murderer', description: 'Neutralize 450 vectors in a single deployment.', icon: BoltIcon, condition: (p) => p.currentRunKills >= 450 },
-  { id: LogId.TANK_DESTROYER, name: 'Tank Destroyer', description: 'Decommission 5 ROCKET_TANK units in a single deployment.', icon: ShieldCheckIcon, condition: (p) => p.currentRunTanksDestroyed >= 5 },
-  { id: LogId.MANIAC, name: 'Maniac', description: 'Decommission 10 ROCKET_TANK units in a single deployment.', icon: ShieldCheckIcon, condition: (p) => p.currentRunTanksDestroyed >= 10 },
-  { id: LogId.COMMANDO, name: 'Commando', description: 'Decommission 30 ROCKET_TANK units in a single deployment.', icon: ShieldCheckIcon, condition: (p) => p.currentRunTanksDestroyed >= 30 },
-  { id: LogId.GET_SOME_GOLD, name: 'Gold Acquisition', description: 'Accumulate 7,000 gold units in a single deployment.', icon: BanknotesIcon, condition: (p) => p.currentRunGoldEarned >= 7000 },
-  { id: LogId.GOLD_HOARDER, name: 'Gold Hoarder', description: 'Accumulate 15,000 gold units in a single deployment.', icon: BanknotesIcon, condition: (p) => p.currentRunGoldEarned >= 15000 },
-  { id: LogId.GOLD_BARON, name: 'Gold Baron', description: 'Accumulate 27,000 gold units in a single deployment.', icon: BanknotesIcon, condition: (p) => p.currentRunGoldEarned >= 27000 },
-  { id: LogId.CAPTAIN_SQUAD, name: 'Squad Captain', description: 'Command a squad of 8 units (including self).', icon: UsersIcon, condition: (p) => p.allies.length >= 7 },
-  { id: LogId.LIEUTENANT_COLONEL_SQUAD, name: 'Lt. Colonel', description: 'Command a squad of 11 units (including self).', icon: UsersIcon, condition: (p) => p.allies.length >= 10 },
-  { id: LogId.COLONEL_SQUAD, name: 'Colonel', description: 'Command a squad of 15 units (including self).', icon: UsersIcon, condition: (p) => p.allies.length >= 14 },
-  { id: LogId.SURVIVED_WAVE_1, name: 'Lucky', description: 'Successfully cleared wave 1.', icon: StarIcon, condition: (p) => p.highestRoundAchievedThisRun >= 1 },
-  { id: LogId.SURVIVED_WAVE_10, name: 'Warrior', description: 'Successfully cleared wave 10.', icon: StarIcon, condition: (p) => p.highestRoundAchievedThisRun >= 10 },
-  { id: LogId.SURVIVED_WAVE_20, name: 'Veteran', description: 'Successfully cleared wave 20.', icon: StarIcon, condition: (p) => p.highestRoundAchievedThisRun >= 20 },
+  { id: LogId.FIRST_BLOOD, name: 'First Blood', description: 'Neutralize your first hostile vector.', icon: CheckIcon, condition: (p) => p.currentRunKills >= 1, rewardGold: 100, rewardDescription: '+100 gold' },
+  { id: LogId.NATURAL_BORN_KILLER, name: 'Natural Born Killer', description: 'Neutralize 50 vectors in a single deployment.', icon: BoltIcon, condition: (p) => p.currentRunKills >= 50, rewardGold: 300, rewardDescription: '+300 gold' },
+  { id: LogId.BLOOD_THIRSTY, name: 'Blood Thirsty', description: 'Neutralize 150 vectors in a single deployment.', icon: BoltIcon, condition: (p) => p.currentRunKills >= 150, rewardGold: 600, rewardDescription: '+600 gold' },
+  { id: LogId.RAMPAGE, name: 'Rampage', description: 'Neutralize 300 vectors in a single deployment.', icon: BoltIcon, condition: (p) => p.currentRunKills >= 300, rewardGold: 1200, rewardDescription: '+1,200 gold' },
+  { id: LogId.MASS_MURDERER, name: 'Mass Murderer', description: 'Neutralize 450 vectors in a single deployment.', icon: BoltIcon, condition: (p) => p.currentRunKills >= 450, rewardGold: 2500, rewardDescription: '+2,500 gold' },
+  { id: LogId.TANK_DESTROYER, name: 'Tank Destroyer', description: 'Decommission 5 ROCKET_TANK units in a single deployment.', icon: ShieldCheckIcon, condition: (p) => p.currentRunTanksDestroyed >= 5, rewardGold: 800, rewardDescription: '+800 gold' },
+  { id: LogId.MANIAC, name: 'Maniac', description: 'Decommission 10 ROCKET_TANK units in a single deployment.', icon: ShieldCheckIcon, condition: (p) => p.currentRunTanksDestroyed >= 10, rewardGold: 1500, rewardDescription: '+1,500 gold' },
+  { id: LogId.COMMANDO, name: 'Commando', description: 'Decommission 30 ROCKET_TANK units in a single deployment.', icon: ShieldCheckIcon, condition: (p) => p.currentRunTanksDestroyed >= 30, rewardGold: 3000, rewardDescription: '+3,000 gold' },
+  { id: LogId.GET_SOME_GOLD, name: 'Gold Acquisition', description: 'Accumulate 7,000 gold units in a single deployment.', icon: BanknotesIcon, condition: (p) => p.currentRunGoldEarned >= 7000, rewardGold: 500, rewardDescription: '+500 gold' },
+  { id: LogId.GOLD_HOARDER, name: 'Gold Hoarder', description: 'Accumulate 15,000 gold units in a single deployment.', icon: BanknotesIcon, condition: (p) => p.currentRunGoldEarned >= 15000, rewardGold: 1000, rewardDescription: '+1,000 gold' },
+  { id: LogId.GOLD_BARON, name: 'Gold Baron', description: 'Accumulate 27,000 gold units in a single deployment.', icon: BanknotesIcon, condition: (p) => p.currentRunGoldEarned >= 27000, rewardGold: 2000, rewardDescription: '+2,000 gold' },
+  { id: LogId.CAPTAIN_SQUAD, name: 'Squad Captain', description: 'Command a squad of 8 units (including self).', icon: UsersIcon, condition: (p) => p.allies.length >= 7, rewardGold: 500, rewardDescription: '+500 gold' },
+  { id: LogId.LIEUTENANT_COLONEL_SQUAD, name: 'Lt. Colonel', description: 'Command a squad of 11 units (including self).', icon: UsersIcon, condition: (p) => p.allies.length >= 10, rewardGold: 1000, rewardDescription: '+1,000 gold' },
+  { id: LogId.COLONEL_SQUAD, name: 'Colonel', description: 'Command a squad of 15 units (including self).', icon: UsersIcon, condition: (p) => p.allies.length >= 14, rewardGold: 2000, rewardDescription: '+2,000 gold' },
+  { id: LogId.SURVIVED_WAVE_1, name: 'Lucky', description: 'Successfully cleared wave 1.', icon: StarIcon, condition: (p) => p.highestRoundAchievedThisRun >= 1, rewardGold: 200, rewardDescription: '+200 gold' },
+  { id: LogId.SURVIVED_WAVE_10, name: 'Warrior', description: 'Successfully cleared wave 10.', icon: StarIcon, condition: (p) => p.highestRoundAchievedThisRun >= 10, rewardGold: 1000, rewardDescription: '+1,000 gold' },
+  { id: LogId.SURVIVED_WAVE_20, name: 'Veteran', description: 'Successfully cleared wave 20.', icon: StarIcon, condition: (p) => p.highestRoundAchievedThisRun >= 20, rewardGold: 3000, rewardDescription: '+3,000 gold' },
 ];

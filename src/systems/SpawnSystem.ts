@@ -3,9 +3,13 @@
  * Creates enemies and collectible allies.
  */
 import { v4 as uuidv4 } from 'uuid';
-import type { Enemy, CollectibleAlly, Player, Size } from '../types';
-import { EnemyType, AllyType } from '../types';
+import type { Enemy, CollectibleAlly, Player, Size, WeaponDrop } from '../types';
+import { EnemyType, AllyType, WeaponType } from '../types';
 import { UI_STROKE_PRIMARY } from '../constants/ui';
+import {
+  WEAPON_DROP_SIZE, WEAPON_DROP_TTL, WEAPON_DROPPABLE_TYPES,
+} from '../constants/player';
+import { PLAYER_WORLD_EDGE_MARGIN } from '../constants/world';
 import {
   ENEMY_DEFAULT_SIZE, ENEMY_ROCKET_TANK_SIZE, ENEMY_AGILE_STALKER_SIZE,
   ENEMY_ELECTRIC_DRONE_SIZE, ENEMY_SNIPER_SIZE, TUTORIAL_DUMMY_SIZE,
@@ -27,7 +31,6 @@ import {
   MAX_CONCURRENT_SPECIAL_ENEMIES_ROUND_6_10, MAX_CONCURRENT_SPECIAL_ENEMIES_ROUND_11_PLUS,
 } from '../constants/enemy';
 import { COLLECTIBLE_ALLY_SIZE, ALLY_SIZE } from '../constants/ally';
-import { PLAYER_WORLD_EDGE_MARGIN } from '../constants/world';
 import { getCenter, distanceBetweenPoints } from '../utils/geometry';
 import type { SpecialEnemySpawnState } from '../types';
 
@@ -198,3 +201,26 @@ export function createCollectibleAlly(
 
   return { id: uuidv4(), allyType, x, y, width: size.width, height: size.height, color: UI_STROKE_PRIMARY };
 }
+
+// ─── Create a weapon drop on the ground ───────────────────────────────────────
+export function createWeaponDrop(
+  weaponType: WeaponType,
+  x: number,
+  y: number,
+  worldArea: Size,
+): WeaponDrop {
+  const margin = 40;
+  const cx = Math.max(margin, Math.min(x - WEAPON_DROP_SIZE.width / 2, worldArea.width  - WEAPON_DROP_SIZE.width  - margin));
+  const cy = Math.max(margin, Math.min(y - WEAPON_DROP_SIZE.height / 2, worldArea.height - WEAPON_DROP_SIZE.height - margin));
+  return {
+    id: uuidv4(),
+    x: cx, y: cy,
+    width:  WEAPON_DROP_SIZE.width,
+    height: WEAPON_DROP_SIZE.height,
+    weaponType,
+    timeToLive:    WEAPON_DROP_TTL,
+    maxTimeToLive: WEAPON_DROP_TTL,
+  };
+}
+
+export { WEAPON_DROPPABLE_TYPES, WeaponType };

@@ -137,6 +137,8 @@ const getInitialGameState = (currentInitialGameArea: Size, isTouchDeviceValue: b
         gameOverPendingTimer: 0,
         waveTitleText: '',
         waveTitleTimer: 0,
+        weaponDrops: [],
+        weaponDropSpawnTimer: 25,
         tutorialStep: 0,
         tutorialMessages: TUTORIAL_MESSAGES,
         tutorialEntities: { ...INITIAL_TUTORIAL_ENTITIES, tutorialHighlightTarget: null, muzzleFlashes: [], effectParticles: [] },

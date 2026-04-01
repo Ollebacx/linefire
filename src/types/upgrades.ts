@@ -31,6 +31,12 @@ export enum UpgradeType {
 
   CHAIN_LIGHTNING_CHANCE  = 'CHAIN_LIGHTNING_CHANCE',
   CHAIN_LIGHTNING_LEVEL   = 'CHAIN_LIGHTNING_LEVEL',
+
+  // Ally survivability
+  ALLY_HEALTH_BOOST       = 'ALLY_HEALTH_BOOST',
+
+  // Player weapon tier
+  WEAPON_TIER             = 'WEAPON_TIER',
 }
 
 export type SvgIconComponent = React.ForwardRefExoticComponent<

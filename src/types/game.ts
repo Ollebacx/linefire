@@ -1,5 +1,5 @@
 import type { Size, Position, GameObject } from './geometry';
-import type { Player } from './player';
+import type { Player, WeaponType } from './player';
 import type { Enemy, EnemyType } from './enemy';
 import type { Projectile } from './projectile';
 import type { Ally, AllyType, CollectibleAlly } from './ally';
@@ -45,6 +45,12 @@ export interface GoldPile extends GameObject {
   color: string;
 }
 
+export interface WeaponDrop extends GameObject {
+  weaponType: WeaponType;
+  timeToLive: number;
+  maxTimeToLive: number;
+}
+
 export interface SceneryObject extends GameObject {
   visualKey: string;
   rotation?: number;
@@ -88,6 +94,10 @@ export interface LogDefinition {
   description: string;
   icon: SvgIconComponent;
   condition: (player: Player, enemies?: Enemy[]) => boolean;
+  /** Gold awarded to the player the moment this medal is unlocked during a run. */
+  rewardGold?: number;
+  /** Human-readable reward description shown in the shop. */
+  rewardDescription?: string;
 }
 
 export interface LogEntry extends Omit<LogDefinition, 'condition'> {
@@ -143,6 +153,8 @@ export interface GameState {
   gameOverPendingTimer?: number;
   waveTitleText: string;
   waveTitleTimer: number;
+  weaponDrops: WeaponDrop[];
+  weaponDropSpawnTimer: number;
   tutorialStep: number;
   tutorialMessages: string[];
   tutorialEntities: TutorialEntities;

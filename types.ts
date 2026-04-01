@@ -87,6 +87,23 @@ export interface Player extends Character {
   chainRange: number;
   chainDamageMultiplier: number;
   currentChainLevel: number; // For upgrade tracking
+
+  // Ally survivability
+  allyHealthBonus: number;
+
+  // Weapon drop system
+  equippedWeapon: WeaponType;
+  weaponTimer: number;
+  weaponBaseSnapshot?: {
+    damage: number;
+    shootCooldown: number;
+    clipSize: number;
+    reloadDuration: number;
+    piercingRoundsLevel: number;
+    projectileSpeedModifier: number;
+  };
+  weaponProjectileCount?: number;
+  weaponSpreadAngle?: number;
 }
 
 export enum EnemyType {
@@ -177,6 +194,21 @@ export interface CollectibleAlly extends GameObject {
   color: string; // This color is used by the indicator
 }
 
+export enum WeaponType {
+  PISTOL        = 'PISTOL',
+  SMG           = 'SMG',
+  ASSAULT_RIFLE = 'ASSAULT_RIFLE',
+  SHOTGUN       = 'SHOTGUN',
+  LMG           = 'LMG',
+  SNIPER        = 'SNIPER',
+}
+
+export interface WeaponDrop extends GameObject {
+  weaponType: WeaponType;
+  timeToLive: number;
+  maxTimeToLive: number;
+}
+
 export enum UpgradeType {
   PLAYER_MAX_HEALTH = 'PLAYER_MAX_HEALTH',
   PLAYER_SPEED = 'PLAYER_SPEED',
@@ -211,6 +243,12 @@ export enum UpgradeType {
   // Chain Lightning Upgrades
   CHAIN_LIGHTNING_CHANCE = 'CHAIN_LIGHTNING_CHANCE', // This might be a single unlock, then levels affect targets/damage
   CHAIN_LIGHTNING_LEVEL = 'CHAIN_LIGHTNING_LEVEL', // Multi-purpose: Increases targets, damage, maybe range slightly
+
+  // Ally survivability
+  ALLY_HEALTH_BOOST = 'ALLY_HEALTH_BOOST',
+
+  // Player weapon tier
+  WEAPON_TIER = 'WEAPON_TIER',
 }
 
 export interface Upgrade {
@@ -268,6 +306,8 @@ export interface LogDefinition {
   description: string;
   icon: React.ForwardRefExoticComponent<Omit<React.SVGProps<SVGSVGElement>, "ref"> & { title?: string | undefined; titleId?: string | undefined; } & React.RefAttributes<SVGSVGElement>>;
   condition: (player: Player, enemies?: Enemy[]) => boolean; // enemies might be useful for some conditions
+  rewardGold?: number;
+  rewardDescription?: string;
 }
 
 export interface LogEntry extends Omit<LogDefinition, 'condition'>{
@@ -379,6 +419,8 @@ export interface GameState {
   gameOverPendingTimer?: number; // Timer for the delay before showing game over screen
   waveTitleText: string; // Text for the wave start title (e.g., "Wave 1")
   waveTitleTimer: number; // Timer for wave start title visibility and fade
+  weaponDrops: WeaponDrop[];
+  weaponDropSpawnTimer: number;
 
   // Tutorial State
   tutorialStep: number;
