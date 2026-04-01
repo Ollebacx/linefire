@@ -4,7 +4,7 @@ import { Player } from '../types';
 import { UI_STROKE_PRIMARY, UI_STROKE_SECONDARY } from '../constants';
 import { submitScore, recordRun, fetchLeaderboard } from '../src/services/apiClient';
 import type { LeaderboardEntry } from '../src/services/apiClient';
-import { getPlayerName } from '../src/services/session';
+import { getPlayerName, setPlayerName } from '../src/services/session';
 import { saveBestWave } from './StartScreen';
 
 interface GameOverScreenProps {
@@ -26,29 +26,30 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ player, round, onGoToMe
   const biggestSquadScore     = biggestSquad * 100;
   const totalScore = moneyCollected + enemiesKilledScore + highestKillComboScore + biggestSquadScore;
 
-  const [period,     setPeriod]     = useState<'all' | 'weekly'>('all');
-  const [allEntries, setAllEntries] = useState<LeaderboardEntry[]>([]);
-  const [myEntryId,  setMyEntryId]  = useState<string | null>(null);
-  const [loadingLb,  setLoadingLb]  = useState(false);
-  const [copied,     setCopied]     = useState(false);
+  const storedName = getPlayerName();
+  const [nameInput,    setNameInput]    = useState(storedName === 'Anonymous' ? '' : storedName);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [period,       setPeriod]       = useState<'all' | 'weekly'>('all');
+  const [allEntries,   setAllEntries]   = useState<LeaderboardEntry[]>([]);
+  const [myEntryId,    setMyEntryId]    = useState<string | null>(null);
+  const [loadingLb,    setLoadingLb]    = useState(false);
+  const [copied,       setCopied]       = useState(false);
   const submitted = useRef(false);
 
-  // Submit once on mount
-  useEffect(() => {
+  const handleSubmitScore = async () => {
     if (submitted.current) return;
     submitted.current = true;
+    const trimmed = nameInput.trim() || 'Anonymous';
+    setPlayerName(trimmed);
+    setHasSubmitted(true);
     saveBestWave(round);
-    const playerName = getPlayerName();
-    const runId      = uuidv4();
-    (async () => {
-      try { await recordRun({ playerName, round, kills: enemiesKilled, gold: moneyCollected, combo: highestKillCombo }); } catch { /**/ }
-      try {
-        const { id } = await submitScore({ playerName, score: totalScore, round, kills: enemiesKilled, runId });
-        setMyEntryId(id);
-      } catch { /**/ }
-    })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const runId = uuidv4();
+    try { await recordRun({ playerName: trimmed, round, kills: enemiesKilled, gold: moneyCollected, combo: highestKillCombo }); } catch { /**/ }
+    try {
+      const { id } = await submitScore({ playerName: trimmed, score: totalScore, round, kills: enemiesKilled, runId });
+      setMyEntryId(id);
+    } catch { /**/ }
+  };
 
   // Fetch leaderboard whenever period changes
   useEffect(() => {
@@ -129,9 +130,40 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ player, round, onGoToMe
           <p className="text-3xl sm:text-4xl" style={{ ...font, fontWeight: '100', color: '#FF9500', textShadow: '0 0 22px rgba(255,149,0,0.75)' }}>
             {totalScore.toLocaleString()}
           </p>
-          {myRank !== null && (
-            <p className="mt-1 text-sm" style={{ ...font, color: '#00FFCC', fontWeight: '500', letterSpacing: '0.08em' }}>
-              GLOBAL RANK #{myRank}
+        </div>
+
+        {/* Alias input / rank */}
+        <div className="mb-5" style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '1rem' }}>
+          {!hasSubmitted ? (
+            <>
+              <p className="text-xs uppercase tracking-widest mb-2" style={{ ...font, color: UI_STROKE_SECONDARY, letterSpacing: '0.18em' }}>Your Alias</p>
+              <div className="flex gap-2">
+                <input
+                  value={nameInput}
+                  onChange={e => setNameInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSubmitScore()}
+                  maxLength={32}
+                  placeholder="Anonymous"
+                  style={{
+                    ...font, flex: 1, background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid rgba(255,255,255,0.15)', borderRadius: '4px',
+                    color: UI_STROKE_PRIMARY, padding: '0.4rem 0.75rem',
+                    fontSize: '0.875rem', outline: 'none',
+                  }}
+                />
+                <button onClick={handleSubmitScore} style={{
+                  ...font, background: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.4)',
+                  borderRadius: '4px', color: '#00E5FF', padding: '0.4rem 1rem',
+                  fontSize: '0.7rem', fontWeight: '600', letterSpacing: '0.12em',
+                  textTransform: 'uppercase', cursor: 'pointer',
+                }}>
+                  Submit
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-center" style={{ ...font, color: myRank !== null ? '#00FFCC' : UI_STROKE_SECONDARY, fontWeight: '500', letterSpacing: '0.08em' }}>
+              {myRank !== null ? `GLOBAL RANK #${myRank}` : 'Score submitted'}
             </p>
           )}
         </div>
