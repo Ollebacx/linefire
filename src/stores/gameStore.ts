@@ -289,7 +289,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       airstrikesPending: 0,
       pendingInitialSpawns: gradual,
       initialSpawnTickCounter: gradual > 0 ? INITIAL_SPAWN_INTERVAL_TICKS : 0,
-      waveTitleText: isBossRound ? `⚠ BOSS WAVE — Round ${roundNumber} ⚠` : `Wave ${roundNumber}`,
+      waveTitleText: isBossRound ? `!! BOSS WAVE — Round ${roundNumber} !!` : `Wave ${roundNumber}`,
       waveTitleTimer: WAVE_TITLE_STAY_DURATION_TICKS + WAVE_TITLE_FADE_OUT_DURATION_TICKS,
       damageTexts: [],
       nextAllyType: s.unlockedAllyTypes.length > 0

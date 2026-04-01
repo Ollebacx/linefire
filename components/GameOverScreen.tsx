@@ -64,7 +64,7 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ player, round, onGoToMe
   const handleShare = () => {
     const rank = myRank !== null ? ` · Rank #${myRank}` : '';
     const text = [
-      `🔥 LINEFIRE — Round ${round}${rank}`,
+      `LINEFIRE — Round ${round}${rank}`,
       `Score ${totalScore.toLocaleString()} · ${enemiesKilled} kills · Combo ×${highestKillCombo} · Squad ${biggestSquad}`,
       window.location.href,
     ].join('\n');

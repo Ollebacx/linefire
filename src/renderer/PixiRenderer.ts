@@ -296,7 +296,7 @@ export class PixiRenderer {
       ? Math.atan2(aimDir.y, aimDir.x)
       : body.rotation;
 
-    // ⚠ OVERCLOCK aura — below 30% HP
+    // OVERCLOCK aura — below 30% HP
     const isOverclock = player.health > 0 && player.maxHealth > 0 && player.health / player.maxHealth < 0.30;
     if (isOverclock) {
       const pulse = 0.4 + 0.6 * Math.abs(Math.sin(Date.now() * 0.012));
@@ -592,7 +592,7 @@ export class PixiRenderer {
         break;
     }
 
-    // ⚡ Hit flash — white overlay for 8 ticks when damaged
+    // Hit flash — white overlay for 8 ticks when damaged
     if ((enemy.hitTimer ?? 0) > 0) {
       const flashAlpha = Math.min(0.88, ((enemy.hitTimer ?? 0) / 8) * 0.88);
       body.circle(0, 0, sz * 0.75).fill({ color: 0xFFFFFF, alpha: flashAlpha });

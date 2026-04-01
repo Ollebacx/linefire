@@ -288,7 +288,7 @@ export const HUD: React.FC<HUDProps> = ({
           <div className={getHighlightClass('health')}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
               <span style={{ ...lbl, fontSize: '0.54rem', color: isOverclock ? '#FF2055' : '#00E5FF' }}>
-                {isOverclock ? '⚠ OVERCLOCK' : 'INTEGRITY'}
+                {isOverclock ? '! OVERCLOCK' : 'INTEGRITY'}
               </span>
               <span style={{ ...lbl, fontSize: '0.54rem', color: hpColor }}>{Math.round(healthPercentage)}%</span>
             </div>
@@ -440,7 +440,7 @@ export const HUD: React.FC<HUDProps> = ({
               textTransform: 'uppercase',
               marginTop: '4px',
             }}>
-              {player.comboCount >= AIRSTRIKE_COMBO_THRESHOLD ? '⚡ AIRSTRIKE READY' : 'CHAIN'}
+              {player.comboCount >= AIRSTRIKE_COMBO_THRESHOLD ? 'AIRSTRIKE READY' : 'CHAIN'}
             </div>
           </div>
         </div>

@@ -309,7 +309,7 @@ export class GameLoop {
       AudioSystem.play('boss_spawn');
       newCamShake = { intensity: 12, duration: 35, timer: 35 };
       newDamageTexts.push({
-        id: uuidv4(), text: '⚠ PHASE 2 ⚠',
+        id: uuidv4(), text: '! PHASE 2 !',
         x: enemy.x + enemy.width / 2, y: enemy.y - 36,
         timer: 180, color: '#FF2055', velocityY: -0.5,
         fontSize: 22, fontWeight: 'bold',
@@ -727,7 +727,7 @@ export class GameLoop {
         currentReloadTimer:      0,
       };
       newDamageTexts.push({
-        id: uuidv4(), text: `⚡ ${cfg.label}`,
+        id: uuidv4(), text: cfg.label,
         x: newPlayer.x + newPlayer.width / 2,
         y: newPlayer.y - 22,
         timer: 90, color: cfg.color, velocityY: -0.9,
@@ -759,7 +759,7 @@ export class GameLoop {
           projectileSpeedModifier: snap.projectileSpeedModifier,
         };
         newDamageTexts.push({
-          id: uuidv4(), text: '🔫 PISTOL',
+          id: uuidv4(), text: 'PISTOL',
           x: newPlayer.x + newPlayer.width / 2,
           y: newPlayer.y - 20,
           timer: 75, color: '#00FFCC', velocityY: -0.6,
