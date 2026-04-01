@@ -21,9 +21,11 @@ export interface Ally extends Character {
   projectileSpeed?: number;
   projectileCount?: number;
   projectileSpreadAngle?: number;
-  leaderId: string;
+  leaderId: string | null;
   pathHistory: Position[];
   lastShootingDirection?: Position;
+  /** True when the chain was broken by a death — acts as a stationary turret until the player re-recruits it. */
+  isStranded?: boolean;
   ammoLeftInClip?: number;
   clipSize?: number;
   reloadDuration?: number;

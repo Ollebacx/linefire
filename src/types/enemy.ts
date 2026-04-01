@@ -7,6 +7,7 @@ export enum EnemyType {
   AGILE_STALKER   = 'AGILE_STALKER',
   ELECTRIC_DRONE  = 'ELECTRIC_DRONE',
   ENEMY_SNIPER    = 'ENEMY_SNIPER',
+  BOSS            = 'BOSS',
   TUTORIAL_DUMMY  = 'TUTORIAL_DUMMY',
 }
 
@@ -18,9 +19,11 @@ export interface Enemy extends Character {
   attackTimer: number;
   points: number;
   targetId?: string | null;
-  // Electric Drone specific
+  hitTimer?: number;       // ticks of white flash when damaged
+  // Electric Drone / Boss specific
   aoeDamage?: number;
   aoeRadius?: number;
   aoeCooldown?: number;
   aoeTimer?: number;
+  bossPhase?: 1 | 2;  // 2 = enraged at ≤50% HP
 }

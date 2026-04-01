@@ -2,7 +2,7 @@ import type { Size } from '../types';
 
 // ── Player base stats ─────────────────────────────────────────────────────────
 export const PLAYER_INITIAL_HEALTH              = 30;
-export const PLAYER_SPEED                       = 3.8;
+export const PLAYER_SPEED                       = 4.2;
 export const PLAYER_SIZE: Size                  = { width: 28, height: 28 };
 export const PLAYER_INITIAL_GOLD                = 0;
 export const PLAYER_INITIAL_DAMAGE              = 10;
@@ -10,7 +10,7 @@ export const PLAYER_INITIAL_RANGE               = 480;
 export const PLAYER_INITIAL_GOLD_MAGNET_RANGE   = 40;
 export const PLAYER_INITIAL_SQUAD_SPACING_MULTIPLIER = 1.0;
 export const PLAYER_INITIAL_SHOOT_COOLDOWN      = 100;
-export const PATH_HISTORY_LENGTH                = 30;
+export const PATH_HISTORY_LENGTH                = 18;
 export const PLAYER_HIT_FLASH_DURATION_TICKS    = 10;
 
 // ── Gun Guy burst-fire ────────────────────────────────────────────────────────

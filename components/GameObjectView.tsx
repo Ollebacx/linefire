@@ -6,7 +6,7 @@ import {
     AIRSTRIKE_PROJECTILE_SIZE, UI_STROKE_PRIMARY, UI_BACKGROUND_NEUTRAL, UI_ACCENT_CRITICAL, UI_STROKE_SECONDARY, UI_ACCENT_WARNING, UI_ACCENT_SHIELD, UI_ACCENT_LIGHTNING,
     UI_ACCENT_SUBTLE, UI_ACCENT_HEALTH // Added missing imports
 } from '../constants';
-import { GAME_OVER_PENDING_DURATION_TICKS } from '../hooks/useGameLogic'; // Import for opacity calculation
+import { GAME_OVER_PENDING_DURATION_TICKS } from '../src/systems/WaveSystem'; // Import for opacity calculation
 
 interface GameObjectViewProps {
   gameObject: GameObject & {

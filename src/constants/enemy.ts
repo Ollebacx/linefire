@@ -63,6 +63,20 @@ export const ENEMY_SNIPER_POINTS              = 35;
 export const ENEMY_SNIPER_MIN_DISTANCE_FACTOR = 0.9;
 export const ENEMY_SNIPER_MAX_DISTANCE_FACTOR = 1.0;
 
+// ── Boss ─────────────────────────────────────────────────────────────────────
+export const ENEMY_BOSS_SIZE: Size          = { width: 56, height: 56 };
+export const ENEMY_BOSS_HEALTH              = 800;
+export const ENEMY_BOSS_DAMAGE              = 25;
+export const ENEMY_BOSS_RANGE               = 500;
+export const ENEMY_BOSS_SPEED               = 1.1;
+export const ENEMY_BOSS_COOLDOWN            = 75;
+export const ENEMY_BOSS_PROJECTILE_SPEED    = 3.5;
+export const ENEMY_BOSS_POINTS              = 300;
+export const ENEMY_BOSS_AOE_DAMAGE          = 20;
+export const ENEMY_BOSS_AOE_RADIUS          = 130;
+export const ENEMY_BOSS_AOE_COOLDOWN        = 90;
+export const ENEMY_BOSS_WARN_TICKS          = 52; // ticks before AoE fires when warning ring starts
+
 // ── Wave / spawn ──────────────────────────────────────────────────────────────
 export const ROUND_BASE_ENEMY_COUNT  = 10;
 export const ROUND_ENEMY_INCREMENT   = 3;
@@ -87,6 +101,7 @@ export const MAX_CONCURRENT_ENEMY_TYPE: Partial<Record<EnemyType, (round: number
   [EnemyType.AGILE_STALKER]:  (r) => (r <= 10 ? 1 : r <= 15 ? 2 : 3),
   [EnemyType.ELECTRIC_DRONE]: (r) => (r <= 10 ? 1 : r <= 15 ? 2 : 3),
   [EnemyType.ENEMY_SNIPER]:   (r) => (r <= 10 ? 1 : r <= 15 ? 2 : 3),
+  [EnemyType.BOSS]:           (_) => 1,   // at most one boss alive at a time
 };
 
 export const SPECIAL_ENEMY_TYPES = [

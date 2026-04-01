@@ -27,6 +27,7 @@ import {
   CAMERA_LERP_FACTOR, SCENERY_OBJECT_COUNT, SCENERY_VISUAL_KEYS, PLAYER_INITIAL_DAMAGE, PLAYER_INITIAL_RANGE, PLAYER_INITIAL_SHOOT_COOLDOWN,
   ENEMY_DEFAULT_SIZE, ENEMY_ROCKET_TANK_SIZE, ENEMY_AGILE_STALKER_SIZE, ENEMY_ELECTRIC_DRONE_SIZE, ENEMY_SNIPER_SIZE, TUTORIAL_DUMMY_SIZE,
   ENEMY_ROCKET_TANK_HEALTH, ENEMY_ROCKET_TANK_DAMAGE, ENEMY_ROCKET_TANK_RANGE, ENEMY_ROCKET_TANK_SPEED, ENEMY_ROCKET_TANK_COOLDOWN, ENEMY_ROCKET_TANK_PROJECTILE_SPEED, ENEMY_ROCKET_TANK_POINTS, ENEMY_ROCKET_TANK_AOE_RADIUS,
+  ENEMY_BOSS_PROJECTILE_SPEED,
   ENEMY_AGILE_STALKER_HEALTH, ENEMY_AGILE_STALKER_DAMAGE, ENEMY_AGILE_STALKER_SPEED, ENEMY_AGILE_STALKER_POINTS, ENEMY_AGILE_STALKER_ATTACK_RANGE, ENEMY_AGILE_STALKER_ATTACK_COOLDOWN,
   ENEMY_ELECTRIC_DRONE_HEALTH, ENEMY_ELECTRIC_DRONE_SPEED, ENEMY_ELECTRIC_DRONE_AOE_DAMAGE, ENEMY_ELECTRIC_DRONE_AOE_RADIUS, ENEMY_ELECTRIC_DRONE_AOE_COOLDOWN, ENEMY_ELECTRIC_DRONE_POINTS,
   ENEMY_SNIPER_HEALTH, ENEMY_SNIPER_DAMAGE, ENEMY_SNIPER_RANGE, ENEMY_SNIPER_SPEED, ENEMY_SNIPER_COOLDOWN, ENEMY_SNIPER_POINTS, ENEMY_SNIPER_MIN_DISTANCE_FACTOR, ENEMY_SNIPER_MAX_DISTANCE_FACTOR,
@@ -376,7 +377,8 @@ export const useGameLogic = (
   const startNewRound = useCallback((playerStateForNewRound: Player, currentRoundNumber: number, currentGameState: GameState) => {
     setGameState(prev => {
       const currentTotalEnemiesThisRound = ROUND_BASE_ENEMY_COUNT + (currentRoundNumber - 1) * ROUND_ENEMY_INCREMENT;
-      const initialEnemiesToSpawnImmediately = INITIAL_ENEMIES_AT_ROUND_START;
+      // No enemies spawn immediately — all deferred until after wave title
+      const initialEnemiesToSpawnImmediately = 0;
       const newInitialEnemies: Enemy[] = [];
       for (let i = 0; i < initialEnemiesToSpawnImmediately; i++) {
           const typeToSpawn = determineNextEnemyType(currentRoundNumber, newInitialEnemies, prev.specialEnemyState);
@@ -384,11 +386,11 @@ export const useGameLogic = (
             newInitialEnemies.push(createNewEnemy(currentRoundNumber, prev.worldArea, typeToSpawn));
           }
       }
-      const enemiesToSpawnGraduallyAtStart = Math.max(0, Math.min(currentTotalEnemiesThisRound, ROUND_BASE_ENEMY_COUNT) - initialEnemiesToSpawnImmediately);
+      const enemiesToSpawnGraduallyAtStart = currentTotalEnemiesThisRound; // all enemies deferred
       return {
         ...prev,
         gameStatus: 'PLAYING',
-        player: {...playerStateForNewRound, playerHitTimer: 0},
+        player: {...playerStateForNewRound, playerHitTimer: 0, pathHistory: []},
         round: currentRoundNumber,
         enemies: newInitialEnemies,
         projectiles: [],
@@ -404,7 +406,8 @@ export const useGameLogic = (
         airstrikeActive: false,
         airstrikesPending: 0,
         pendingInitialSpawns: enemiesToSpawnGraduallyAtStart,
-        initialSpawnTickCounter: enemiesToSpawnGraduallyAtStart > 0 ? INITIAL_SPAWN_INTERVAL_TICKS : 0,
+        // Delay first spawn until wave title has been shown for a moment
+        initialSpawnTickCounter: WAVE_TITLE_STAY_DURATION_TICKS,
         waveTitleText: `Wave ${currentRoundNumber}`,
         waveTitleTimer: WAVE_TITLE_STAY_DURATION_TICKS + WAVE_TITLE_FADE_OUT_DURATION_TICKS,
         damageTexts: [],
@@ -1494,7 +1497,7 @@ export const useGameLogic = (
         currentEnemies.forEach(enemy => {
           let currentEnemy = {...enemy};
           currentEnemy.attackTimer = Math.max(0, currentEnemy.attackTimer - 1);
-          if (currentEnemy.enemyType === EnemyType.ELECTRIC_DRONE) currentEnemy.aoeTimer = Math.max(0, (currentEnemy.aoeTimer || 0) - 1);
+          if (currentEnemy.enemyType === EnemyType.ELECTRIC_DRONE || currentEnemy.enemyType === EnemyType.BOSS) currentEnemy.aoeTimer = Math.max(0, (currentEnemy.aoeTimer || 0) - 1);
           
           let target: Player | Ally | null = newPlayer; 
           let minDistToTarget = distanceBetweenGameObjects(currentEnemy, newPlayer);
@@ -1514,7 +1517,7 @@ export const useGameLogic = (
           let shouldMove = true;
           if (currentEnemy.enemyType === EnemyType.RANGED_SHOOTER) { if (distToActualTarget < currentEnemy.attackRange * 0.8 && distToActualTarget > ENEMY_RANGED_SHOOTER_MIN_DISTANCE) shouldMove = false; else if (distToActualTarget <= ENEMY_RANGED_SHOOTER_MIN_DISTANCE) { currentEnemy.x -= directionToTarget.x * currentEnemy.speed * 0.7; currentEnemy.y -= directionToTarget.y * currentEnemy.speed * 0.7; shouldMove = false; } }
           else if (currentEnemy.enemyType === EnemyType.ENEMY_SNIPER) { if (distToActualTarget < currentEnemy.attackRange * ENEMY_SNIPER_MIN_DISTANCE_FACTOR) { currentEnemy.x -= directionToTarget.x * currentEnemy.speed * 0.8; currentEnemy.y -= directionToTarget.y * currentEnemy.speed * 0.8; shouldMove = false; } else if (distToActualTarget > currentEnemy.attackRange * ENEMY_SNIPER_MAX_DISTANCE_FACTOR) { if (distToActualTarget > currentEnemy.attackRange * 1.2) shouldMove = true; else shouldMove = false; } else shouldMove = false; }
-          else if (currentEnemy.enemyType === EnemyType.ROCKET_TANK || currentEnemy.enemyType === EnemyType.ELECTRIC_DRONE) { const effectiveRange = currentEnemy.enemyType === EnemyType.ELECTRIC_DRONE ? (currentEnemy.aoeRadius || 0) : currentEnemy.attackRange; if (distToActualTarget <= effectiveRange * 0.5) shouldMove = false; }
+          else if (currentEnemy.enemyType === EnemyType.ROCKET_TANK || currentEnemy.enemyType === EnemyType.ELECTRIC_DRONE || currentEnemy.enemyType === EnemyType.BOSS) { const effectiveRange = currentEnemy.enemyType === EnemyType.ELECTRIC_DRONE ? (currentEnemy.aoeRadius || 0) : currentEnemy.attackRange; if (distToActualTarget <= effectiveRange * 0.5) shouldMove = false; }
           if (shouldMove && (distToActualTarget > currentEnemy.attackRange * 0.1 || currentEnemy.enemyType === EnemyType.MELEE_GRUNT || currentEnemy.enemyType === EnemyType.AGILE_STALKER)) { currentEnemy.x += directionToTarget.x * currentEnemy.speed; currentEnemy.y += directionToTarget.y * currentEnemy.speed; }
           currentEnemy.x = Math.max(-currentEnemy.width, Math.min(currentEnemy.x, WORLD_AREA.width));
           currentEnemy.y = Math.max(-currentEnemy.height, Math.min(currentEnemy.y, WORLD_AREA.height));
@@ -1554,6 +1557,28 @@ export const useGameLogic = (
             }
             else if (currentEnemy.enemyType === EnemyType.RANGED_SHOOTER || currentEnemy.enemyType === EnemyType.ENEMY_SNIPER) { if (isGameObjectOnScreen(target, newBaseCamera, gameArea)) { newProjectilesCreatedThisTick.push({ id: uuidv4(), x: enemyCenter.x - PROJECTILE_SIZE.width / 2, y: enemyCenter.y - PROJECTILE_SIZE.height / 2, width: PROJECTILE_SIZE.width, height: PROJECTILE_SIZE.height, velocity: { x: directionToTarget.x * ENEMY_PROJECTILE_SPEED, y: directionToTarget.y * ENEMY_PROJECTILE_SPEED }, damage: currentEnemy.attackDamage, ownerId: currentEnemy.id, isPlayerProjectile: false, color: UI_ACCENT_CRITICAL, causesShake: false }); currentEnemy.attackTimer = currentEnemy.attackCooldown; } }
             else if (currentEnemy.enemyType === EnemyType.ROCKET_TANK) { if (isGameObjectOnScreen(target, newBaseCamera, gameArea)) { newProjectilesCreatedThisTick.push({ id: uuidv4(), x: enemyCenter.x - RPG_PROJECTILE_SIZE.width / 2, y: enemyCenter.y - RPG_PROJECTILE_SIZE.height / 2, width: RPG_PROJECTILE_SIZE.width, height: RPG_PROJECTILE_SIZE.height, velocity: { x: directionToTarget.x * ENEMY_ROCKET_TANK_PROJECTILE_SPEED, y: directionToTarget.y * ENEMY_ROCKET_TANK_PROJECTILE_SPEED }, damage: currentEnemy.attackDamage, ownerId: currentEnemy.id, isPlayerProjectile: false, color: UI_ACCENT_CRITICAL, causesShake: true, aoeRadius: ENEMY_ROCKET_TANK_AOE_RADIUS }); currentEnemy.attackTimer = currentEnemy.attackCooldown; } }
+            else if (currentEnemy.enemyType === EnemyType.BOSS) {
+              if (isGameObjectOnScreen(target, newBaseCamera, gameArea)) {
+                // 3-spread magenta burst toward player
+                const bossSpread = [-12, 0, 12];
+                bossSpread.forEach(deg => {
+                  const rad = deg * (Math.PI / 180);
+                  const bDx = directionToTarget.x * Math.cos(rad) - directionToTarget.y * Math.sin(rad);
+                  const bDy = directionToTarget.x * Math.sin(rad) + directionToTarget.y * Math.cos(rad);
+                  newProjectilesCreatedThisTick.push({
+                    id: uuidv4(),
+                    x: enemyCenter.x - RPG_PROJECTILE_SIZE.width / 2,
+                    y: enemyCenter.y - RPG_PROJECTILE_SIZE.height / 2,
+                    width: RPG_PROJECTILE_SIZE.width, height: RPG_PROJECTILE_SIZE.height,
+                    velocity: { x: bDx * ENEMY_BOSS_PROJECTILE_SPEED, y: bDy * ENEMY_BOSS_PROJECTILE_SPEED },
+                    damage: currentEnemy.attackDamage,
+                    ownerId: currentEnemy.id, isPlayerProjectile: false,
+                    color: '#FF0080', causesShake: false,
+                  });
+                });
+                currentEnemy.attackTimer = currentEnemy.attackCooldown;
+              }
+            }
           }
           if (currentEnemy.enemyType === EnemyType.ELECTRIC_DRONE && currentEnemy.aoeTimer === 0) {
             const droneCenter = getCenter(currentEnemy); let aoeHitSomeone = false;
@@ -1570,6 +1595,33 @@ export const useGameLogic = (
             });
             newPlayer.allies = newPlayer.allies.filter(a => a.health > 0);
             if (aoeHitSomeone) currentEnemy.aoeTimer = currentEnemy.aoeCooldown; else currentEnemy.aoeTimer = Math.min(15, (currentEnemy.aoeCooldown || 60) / 4);
+          }
+          if (currentEnemy.enemyType === EnemyType.BOSS && (currentEnemy.aoeTimer || 0) === 0) {
+            const bossCenter = getCenter(currentEnemy);
+            const bossAoeR = currentEnemy.aoeRadius || 130;
+            if (distanceBetweenPoints(bossCenter, getCenter(newPlayer)) <= bossAoeR) {
+              let bossAoeHit = false;
+              if (!isPlayerShieldedByOuterScope && newPlayer.health > 0) {
+                newPlayer.health -= (currentEnemy.aoeDamage || 0); bossAoeHit = true;
+                if (newPlayer.health > 0) newPlayer.playerHitTimer = PLAYER_HIT_FLASH_DURATION_TICKS;
+              }
+              newPlayer.allies.forEach(ally => {
+                let allyShielded = false;
+                if (newPlayer.shieldAbilityUnlocked) for (const sz of newShieldZones) if (distanceBetweenPoints(getCenter(ally), getCenter(sz)) <= sz.radius) { allyShielded = true; break; }
+                if (!allyShielded && distanceBetweenPoints(bossCenter, getCenter(ally)) <= bossAoeR) { ally.health = 0; bossAoeHit = true; }
+              });
+              newPlayer.allies = newPlayer.allies.filter(a => a.health > 0);
+              // Shockwave ring particles
+              for (let _bi = 0; _bi < 24; _bi++) {
+                const _ba = (_bi / 24) * Math.PI * 2;
+                const _bs = 3 + Math.random() * 4;
+                newEffectParticles.push({ id: uuidv4(), x: bossCenter.x, y: bossCenter.y, size: 4 + Math.random() * 5, color: _bi % 2 === 0 ? '#FF0080' : '#FF4444', velocity: { x: Math.cos(_ba) * _bs, y: Math.sin(_ba) * _bs }, timer: EFFECT_PARTICLE_DURATION_TICKS * 1.8, initialTimer: EFFECT_PARTICLE_DURATION_TICKS * 1.8, type: 'death' });
+              }
+              currentEnemy.aoeTimer = currentEnemy.aoeCooldown;
+              if (bossAoeHit) { /* damage already applied */ } else { currentEnemy.aoeTimer = currentEnemy.aoeCooldown; }
+            } else {
+              currentEnemy.aoeTimer = Math.min(10, (currentEnemy.aoeCooldown || 90) / 9);
+            }
           }
           tempEnemies.push(currentEnemy);
         });

@@ -96,6 +96,7 @@ export enum EnemyType {
   AGILE_STALKER = 'AGILE_STALKER',
   ELECTRIC_DRONE = 'ELECTRIC_DRONE',
   ENEMY_SNIPER = 'ENEMY_SNIPER',
+  BOSS = 'BOSS',
   TUTORIAL_DUMMY = 'TUTORIAL_DUMMY', // For tutorial target
 }
 
@@ -158,9 +159,11 @@ export interface Ally extends Character {
   projectileSpeed?: number;
   projectileCount?: number;
   projectileSpreadAngle?: number;
-  leaderId: string;
+  leaderId: string | null;
   pathHistory: Position[]; // Added for trail following
   lastShootingDirection?: Position; // Direction of the last shot for orientation
+  /** True when the chain was broken by a death — ally acts as a stationary turret until the player re-recruits it. */
+  isStranded?: boolean;
 
   // For Gun Guy burst fire mechanic
   ammoLeftInClip?: number;
@@ -360,6 +363,7 @@ export interface GameState {
   mousePosition: Position | null;
   nextRoundTimer?: number;
   nextAllySpawnTimer: number;
+  nextAllyType?: AllyType | null;
   unlockedAllyTypes: AllyType[];
   cameraShake: CameraShakeState | null;
   isTouchDevice?: boolean;

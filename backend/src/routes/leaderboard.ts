@@ -22,10 +22,15 @@ const SubmitSchema = z.object({
 
 // ── GET /leaderboard ──────────────────────────────────────────────────────────
 leaderboardRoute.get('/', async c => {
+  const period = c.req.query('period'); // 'weekly' | undefined
   const db = getDb();
+  const weekWhere = period === 'weekly'
+    ? 'WHERE created_at >= unixepoch() - 7 * 24 * 3600'
+    : '';
   const result = await db.execute(`
     SELECT id, player_name, score, round, kills, created_at
     FROM leaderboard
+    ${weekWhere}
     ORDER BY score DESC
     LIMIT 20
   `);

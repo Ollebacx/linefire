@@ -126,9 +126,11 @@ export interface GameState {
   mousePosition: Position | null;
   nextRoundTimer?: number;
   nextAllySpawnTimer: number;
+  nextAllyType?: AllyType | null;
   unlockedAllyTypes: AllyType[];
   cameraShake: CameraShakeState | null;
   isTouchDevice?: boolean;
+  controlScheme: 'keyboard' | 'mouse';
   specialEnemyState: SpecialEnemySpawnState;
   comboTimer: number;
   airstrikeAvailable: boolean;

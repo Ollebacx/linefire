@@ -21,6 +21,7 @@ export interface InputSnapshot {
   mousePosition: Position | null;
   joystickDirection: Position;
   isTouchDevice: boolean;
+  controlScheme: 'keyboard' | 'mouse';
 }
 
 // ─── Player movement ──────────────────────────────────────────────────────────
@@ -38,8 +39,22 @@ export function applyPlayerMovement(
   if (input.isTouchDevice && (input.joystickDirection.x !== 0 || input.joystickDirection.y !== 0)) {
     dx = input.joystickDirection.x * p.speed;
     dy = input.joystickDirection.y * p.speed;
+  } else if (input.controlScheme === 'mouse') {
+    // ── Mouse-only scheme: move toward cursor, keyboard ignored ──
+    if (input.mousePosition) {
+      const playerCenter = getCenter(p);
+      const worldX = input.mousePosition.x + camera.x;
+      const worldY = input.mousePosition.y + camera.y;
+      const vecX = worldX - playerCenter.x;
+      const vecY = worldY - playerCenter.y;
+      const dist = Math.sqrt(vecX ** 2 + vecY ** 2);
+      if (dist > p.width * 0.5) {
+        dx = (vecX / dist) * p.speed;
+        dy = (vecY / dist) * p.speed;
+      }
+    }
   } else {
-    // Keyboard movement (WASD / Arrow keys)
+    // ── Keyboard-only scheme: WASD / Arrow keys, mouse ignored ──
     const keys = input.keysPressed;
     let kx = 0, ky = 0;
     if (keys['w'] || keys['W'] || keys['ArrowUp'])    ky -= p.speed;
@@ -48,7 +63,6 @@ export function applyPlayerMovement(
     if (keys['d'] || keys['D'] || keys['ArrowRight']) kx += p.speed;
 
     if (kx !== 0 || ky !== 0) {
-      // Keyboard active — normalise diagonal
       if (kx !== 0 && ky !== 0) {
         const len = Math.sqrt(kx ** 2 + ky ** 2);
         dx = (kx / len) * p.speed;
@@ -56,19 +70,6 @@ export function applyPlayerMovement(
       } else {
         dx = kx;
         dy = ky;
-      }
-    } else if (input.mousePosition) {
-      // No keys — move toward mouse cursor
-      const playerCenter = getCenter(p);
-      const worldX = input.mousePosition.x + camera.x;
-      const worldY = input.mousePosition.y + camera.y;
-      const vecX = worldX - playerCenter.x;
-      const vecY = worldY - playerCenter.y;
-      const dist = Math.sqrt(vecX ** 2 + vecY ** 2);
-      // Only move when cursor is further than half a player-width away
-      if (dist > p.width * 0.5) {
-        dx = (vecX / dist) * p.speed;
-        dy = (vecY / dist) * p.speed;
       }
     }
   }

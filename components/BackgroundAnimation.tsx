@@ -1,191 +1,126 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { v4 as uuidv4 } from 'uuid';
-import { UI_STROKE_SECONDARY, UI_STROKE_PRIMARY, UI_ACCENT_CRITICAL, ENEMY_DEFAULT_SIZE, PROJECTILE_SIZE } from '../constants';
-import GameObjectView from './GameObjectView'; // Import GameObjectView
-import { EnemyType, Position, Size } from '../types'; // Import necessary types
-
-// Define a simplified structure for background entities, compatible with GameObjectView props
-interface BackgroundGameEntity {
-  id: string;
-  type: 'enemy' | 'projectile';
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  vx: number;
-  vy: number;
-  color: string;
-  opacity: number;
-  enemyType?: EnemyType; // For enemies
-  shootTimer?: number;   // For enemies
-  life?: number;         // For projectiles
-  isPlayerProjectile?: boolean; // Always false for these background projectiles
-  ownerId?: string; // Generic owner for projectiles
-  velocity?: Position; // For GameObjectView orientation
-}
-
+import React, { useEffect, useRef } from 'react';
 
 interface BackgroundAnimationProps {
   viewportWidth: number;
   viewportHeight: number;
 }
 
-const NUM_BACKGROUND_ENEMIES_MAX = 5; 
-const BACKGROUND_ENEMY_SPEED_MIN = 0.15;
-const BACKGROUND_ENEMY_SPEED_MAX = 0.45;
-const BACKGROUND_PROJECTILE_SIZE_VAL = PROJECTILE_SIZE.width;
-const BACKGROUND_PROJECTILE_SPEED = 0.8;
-const BACKGROUND_PROJECTILE_LIFE = 250; 
-const ENEMY_SHOOT_INTERVAL_MIN = 180; 
-const ENEMY_SHOOT_INTERVAL_MAX = 400; 
-const ENTITY_BASE_OPACITY = 0.5; // Increased from 0.2 to 0.5
+const COLORS = ['#00FFCC', '#00E5FF', '#80FF44', '#FF2055', '#FF9500', '#00AAFF'];
+const GRID_SIZE = 50;
+const NUM_PARTICLES = 40;
 
-const AVAILABLE_ENEMY_TYPES = [EnemyType.MELEE_GRUNT, EnemyType.RANGED_SHOOTER];
+interface Particle {
+  x: number; y: number;
+  vx: number; vy: number;
+  r: number;
+  color: string;
+  alpha: number;
+  pulseOffset: number;
+}
 
 const BackgroundAnimation: React.FC<BackgroundAnimationProps> = ({ viewportWidth, viewportHeight }) => {
-  const [entities, setEntities] = useState<BackgroundGameEntity[]>([]);
-  const animationFrameId = useRef<number | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const frameRef = useRef<number>(0);
+  const particlesRef = useRef<Particle[]>([]);
 
   useEffect(() => {
-    const createBackgroundEnemy = (): BackgroundGameEntity => {
-      const enemyType = AVAILABLE_ENEMY_TYPES[Math.floor(Math.random() * AVAILABLE_ENEMY_TYPES.length)];
-      const size = ENEMY_DEFAULT_SIZE.width * (0.8 + Math.random() * 0.4); 
+    const canvas = canvasRef.current;
+    if (!canvas || viewportWidth === 0 || viewportHeight === 0) return;
 
-      let x, y, vx, vy;
-      const side = Math.floor(Math.random() * 4);
-      const speed = BACKGROUND_ENEMY_SPEED_MIN + Math.random() * (BACKGROUND_ENEMY_SPEED_MAX - BACKGROUND_ENEMY_SPEED_MIN);
+    canvas.width = viewportWidth;
+    canvas.height = viewportHeight;
 
-      if (side === 0) { // Top
-        x = Math.random() * viewportWidth; y = -size;
-        vx = (Math.random() - 0.5) * speed; vy = speed;
-      } else if (side === 1) { // Right
-        x = viewportWidth + size; y = Math.random() * viewportHeight;
-        vx = -speed; vy = (Math.random() - 0.5) * speed;
-      } else if (side === 2) { // Bottom
-        x = Math.random() * viewportWidth; y = viewportHeight + size;
-        vx = (Math.random() - 0.5) * speed; vy = -speed;
-      } else { // Left
-        x = -size; y = Math.random() * viewportHeight;
-        vx = speed; vy = (Math.random() - 0.5) * speed;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Init particles
+    particlesRef.current = Array.from({ length: NUM_PARTICLES }, () => ({
+      x: Math.random() * viewportWidth,
+      y: Math.random() * viewportHeight,
+      vx: (Math.random() - 0.5) * 0.35,
+      vy: (Math.random() - 0.5) * 0.35,
+      r: 1.5 + Math.random() * 2.5,
+      color: COLORS[Math.floor(Math.random() * COLORS.length)],
+      alpha: 0.25 + Math.random() * 0.45,
+      pulseOffset: Math.random() * Math.PI * 2,
+    }));
+
+    let frame = 0;
+
+    const draw = () => {
+      frame++;
+      ctx.clearRect(0, 0, viewportWidth, viewportHeight);
+
+      // Background
+      ctx.fillStyle = '#080A14';
+      ctx.fillRect(0, 0, viewportWidth, viewportHeight);
+
+      // Dot grid
+      ctx.fillStyle = '#1E3A5F';
+      for (let gx = GRID_SIZE; gx < viewportWidth; gx += GRID_SIZE) {
+        for (let gy = GRID_SIZE; gy < viewportHeight; gy += GRID_SIZE) {
+          ctx.beginPath();
+          ctx.arc(gx, gy, 1.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
 
-      return {
-        id: uuidv4(),
-        type: 'enemy',
-        x, y, width: size, height: size,
-        vx, vy,
-        color: UI_STROKE_PRIMARY, 
-        opacity: ENTITY_BASE_OPACITY,
-        enemyType,
-        shootTimer: ENEMY_SHOOT_INTERVAL_MIN + Math.random() * (ENEMY_SHOOT_INTERVAL_MAX - ENEMY_SHOOT_INTERVAL_MIN),
-        velocity: {x:vx, y:vy}
-      };
-    };
+      // Particles
+      for (const p of particlesRef.current) {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < 0) p.x = viewportWidth;
+        if (p.x > viewportWidth) p.x = 0;
+        if (p.y < 0) p.y = viewportHeight;
+        if (p.y > viewportHeight) p.y = 0;
 
-    const gameTick = () => {
-      setEntities(prevEntities => {
-        const newEntities: BackgroundGameEntity[] = [];
-        let enemyCount = 0;
+        const pulse = 0.6 + 0.4 * Math.sin(frame * 0.025 + p.pulseOffset);
+        const alpha = p.alpha * pulse;
+        const glowR = p.r * 5;
 
-        for (const entity of prevEntities) {
-          if (entity.type === 'enemy') enemyCount++;
-          let newEntity = { ...entity };
-          newEntity.x += newEntity.vx;
-          newEntity.y += newEntity.vy;
-          newEntity.velocity = {x: newEntity.vx, y: newEntity.vy};
+        // Outer glow
+        const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, glowR);
+        grad.addColorStop(0, p.color + Math.round(alpha * 0.6 * 255).toString(16).padStart(2, '0'));
+        grad.addColorStop(1, p.color + '00');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, glowR, 0, Math.PI * 2);
+        ctx.fill();
 
-
-          if (newEntity.type === 'enemy') {
-            newEntity.shootTimer = (newEntity.shootTimer || 0) - 1;
-            if (newEntity.shootTimer <= 0) {
-              const angle = Math.atan2(newEntity.vy, newEntity.vx) + (Math.random() - 0.5) * 0.5; 
-              newEntities.push({
-                id: uuidv4(),
-                type: 'projectile',
-                x: newEntity.x + newEntity.width / 2 - BACKGROUND_PROJECTILE_SIZE_VAL / 2,
-                y: newEntity.y + newEntity.height / 2 - BACKGROUND_PROJECTILE_SIZE_VAL / 2,
-                width: BACKGROUND_PROJECTILE_SIZE_VAL,
-                height: BACKGROUND_PROJECTILE_SIZE_VAL,
-                vx: Math.cos(angle) * BACKGROUND_PROJECTILE_SPEED,
-                vy: Math.sin(angle) * BACKGROUND_PROJECTILE_SPEED,
-                color: UI_ACCENT_CRITICAL, 
-                opacity: ENTITY_BASE_OPACITY * 1.2, // Projectiles slightly more opaque
-                life: BACKGROUND_PROJECTILE_LIFE,
-                isPlayerProjectile: false,
-                ownerId: 'background_enemy',
-                velocity: { x: Math.cos(angle) * BACKGROUND_PROJECTILE_SPEED, y: Math.sin(angle) * BACKGROUND_PROJECTILE_SPEED}
-              });
-              newEntity.shootTimer = ENEMY_SHOOT_INTERVAL_MIN + Math.random() * (ENEMY_SHOOT_INTERVAL_MAX - ENEMY_SHOOT_INTERVAL_MIN);
-            }
-            if (newEntity.x < -newEntity.width * 3 || newEntity.x > viewportWidth + newEntity.width * 2 ||
-                newEntity.y < -newEntity.height * 3 || newEntity.y > viewportHeight + newEntity.height * 2) {
-              continue;
-            }
-             if (Math.random() < 0.003) { 
-                const angle = Math.random() * Math.PI * 2;
-                const speed = BACKGROUND_ENEMY_SPEED_MIN + Math.random() * (BACKGROUND_ENEMY_SPEED_MAX - BACKGROUND_ENEMY_SPEED_MIN);
-                newEntity.vx = Math.cos(angle) * speed;
-                newEntity.vy = Math.sin(angle) * speed;
-            }
-          } else if (newEntity.type === 'projectile') {
-            newEntity.life = (newEntity.life || 0) - 1;
-            if (newEntity.life <= 0 || 
-                newEntity.x < -newEntity.width || newEntity.x > viewportWidth ||
-                newEntity.y < -newEntity.height || newEntity.y > viewportHeight) {
-              continue; 
-            }
-          }
-          newEntities.push(newEntity);
-        }
-
-        while (newEntities.filter(e => e.type === 'enemy').length < NUM_BACKGROUND_ENEMIES_MAX && viewportWidth > 0 && viewportHeight > 0) {
-          newEntities.push(createBackgroundEnemy());
-        }
-        return newEntities;
-      });
-      animationFrameId.current = requestAnimationFrame(gameTick);
-    };
-
-    if (viewportWidth > 0 && viewportHeight > 0) {
-        animationFrameId.current = requestAnimationFrame(gameTick);
-    }
-    
-    return () => {
-      if (animationFrameId.current) {
-        cancelAnimationFrame(animationFrameId.current);
+        // Core dot
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
       }
+
+      // Subtle horizontal scan lines
+      for (let sy = 0; sy < viewportHeight; sy += 4) {
+        ctx.fillStyle = 'rgba(0,0,0,0.08)';
+        ctx.fillRect(0, sy, viewportWidth, 1);
+      }
+
+      frameRef.current = requestAnimationFrame(draw);
     };
+
+    frameRef.current = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(frameRef.current);
   }, [viewportWidth, viewportHeight]);
 
   if (!viewportWidth || !viewportHeight) return null;
 
-  const staticCamera: Position = { x: 0, y: 0 };
-  const fullViewport: Size = { width: viewportWidth, height: viewportHeight };
-
   return (
-    <div
+    <canvas
+      ref={canvasRef}
       style={{
-        position: 'fixed', 
-        inset: 0, 
-        width: '100%',
-        height: '100%',
-        overflow: 'hidden',
-        zIndex: 0, 
-        pointerEvents: 'none',
-        backgroundColor: '#FFFFFF', 
+        position: 'fixed', inset: 0,
+        width: '100%', height: '100%',
+        zIndex: 0, pointerEvents: 'none',
       }}
       aria-hidden="true"
-    >
-      {entities.map(entity => (
-        <GameObjectView
-          key={entity.id}
-          gameObject={entity as any} 
-          entityType={entity.type as ('enemy' | 'projectile')}
-          camera={staticCamera}
-          viewport={fullViewport}
-        />
-      ))}
-    </div>
+    />
   );
 };
 

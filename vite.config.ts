@@ -8,6 +8,13 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        proxy: {
+          // /api/* → localhost:4000/* (strips the /api prefix)
+          '/api': {
+            target: 'http://localhost:4000',
+            rewrite: (path: string) => path.replace(/^\/api/, ''),
+          },
+        },
       },
       plugins: [react()],
       define: {

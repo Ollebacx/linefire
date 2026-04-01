@@ -9,6 +9,7 @@ import { UI_STROKE_PRIMARY } from '../constants/ui';
 import {
   ENEMY_DEFAULT_SIZE, ENEMY_ROCKET_TANK_SIZE, ENEMY_AGILE_STALKER_SIZE,
   ENEMY_ELECTRIC_DRONE_SIZE, ENEMY_SNIPER_SIZE, TUTORIAL_DUMMY_SIZE,
+  ENEMY_BOSS_SIZE,
   ENEMY_MELEE_GRUNT_HEALTH, ENEMY_MELEE_GRUNT_DAMAGE, ENEMY_MELEE_GRUNT_SPEED, ENEMY_MELEE_GRUNT_POINTS,
   ENEMY_RANGED_SHOOTER_HEALTH, ENEMY_RANGED_SHOOTER_DAMAGE, ENEMY_RANGED_SHOOTER_RANGE,
   ENEMY_RANGED_SHOOTER_SPEED, ENEMY_RANGED_SHOOTER_COOLDOWN, ENEMY_RANGED_SHOOTER_POINTS,
@@ -20,6 +21,8 @@ import {
   ENEMY_ELECTRIC_DRONE_AOE_RADIUS, ENEMY_ELECTRIC_DRONE_AOE_COOLDOWN, ENEMY_ELECTRIC_DRONE_POINTS,
   ENEMY_SNIPER_HEALTH, ENEMY_SNIPER_DAMAGE, ENEMY_SNIPER_RANGE, ENEMY_SNIPER_SPEED,
   ENEMY_SNIPER_COOLDOWN, ENEMY_SNIPER_POINTS,
+  ENEMY_BOSS_HEALTH, ENEMY_BOSS_DAMAGE, ENEMY_BOSS_RANGE, ENEMY_BOSS_SPEED,
+  ENEMY_BOSS_COOLDOWN, ENEMY_BOSS_POINTS, ENEMY_BOSS_AOE_DAMAGE, ENEMY_BOSS_AOE_RADIUS, ENEMY_BOSS_AOE_COOLDOWN,
   ENEMY_SPAWN_PROBABILITIES, MAX_CONCURRENT_ENEMY_TYPE, SPECIAL_ENEMY_TYPES,
   MAX_CONCURRENT_SPECIAL_ENEMIES_ROUND_6_10, MAX_CONCURRENT_SPECIAL_ENEMIES_ROUND_11_PLUS,
 } from '../constants/enemy';
@@ -33,7 +36,11 @@ export function determineNextEnemyType(
   round: number,
   currentEnemies: Enemy[],
   _specialState: SpecialEnemySpawnState,
-): EnemyType | null {
+): EnemyType | null {  // ★ Boss waves: rounds 5, 10, 15, 20… — guarantee exactly one boss per wave
+  if (round >= 5 && round % 5 === 0) {
+    const bossAlive = currentEnemies.filter(e => e.enemyType === EnemyType.BOSS).length;
+    if (bossAlive === 0) return EnemyType.BOSS;
+  }
   const bracket =
     round <= 5  ? '1-5'   :
     round <= 10 ? '6-10'  :
@@ -111,7 +118,7 @@ export function createEnemy(round: number, worldArea: Size, type: EnemyType): En
         health: ENEMY_ELECTRIC_DRONE_HEALTH + round * 1.2, maxHealth: ENEMY_ELECTRIC_DRONE_HEALTH + round * 1.2,
         speed: ENEMY_ELECTRIC_DRONE_SPEED, attackDamage: 0, attackRange: 0, attackCooldown: 0, attackTimer: 0,
         aoeDamage: ENEMY_ELECTRIC_DRONE_AOE_DAMAGE, aoeRadius: ENEMY_ELECTRIC_DRONE_AOE_RADIUS,
-        aoeCooldown: ENEMY_ELECTRIC_DRONE_AOE_COOLDOWN, aoeTimer: 0, points: ENEMY_ELECTRIC_DRONE_POINTS,
+        aoeCooldown: ENEMY_ELECTRIC_DRONE_AOE_COOLDOWN, aoeTimer: ENEMY_ELECTRIC_DRONE_AOE_COOLDOWN, points: ENEMY_ELECTRIC_DRONE_POINTS,
       }; break;
     case EnemyType.ENEMY_SNIPER:
       base = {
@@ -125,6 +132,16 @@ export function createEnemy(round: number, worldArea: Size, type: EnemyType): En
       base = {
         enemyType: type, width: TUTORIAL_DUMMY_SIZE.width, height: TUTORIAL_DUMMY_SIZE.height,
         health: 20, maxHealth: 20, speed: 0, attackDamage: 0, attackRange: 0, attackCooldown: 9999, attackTimer: 0, points: 1,
+      }; break;
+    case EnemyType.BOSS:
+      base = {
+        enemyType: type, width: ENEMY_BOSS_SIZE.width, height: ENEMY_BOSS_SIZE.height,
+        health: ENEMY_BOSS_HEALTH + round * 50, maxHealth: ENEMY_BOSS_HEALTH + round * 50,
+        speed: ENEMY_BOSS_SPEED + round * 0.02, attackDamage: ENEMY_BOSS_DAMAGE + round * 2,
+        attackRange: ENEMY_BOSS_RANGE, attackCooldown: Math.max(45, ENEMY_BOSS_COOLDOWN - round * 1),
+        attackTimer: 0, points: ENEMY_BOSS_POINTS + round * 20,
+        aoeDamage: ENEMY_BOSS_AOE_DAMAGE, aoeRadius: ENEMY_BOSS_AOE_RADIUS,
+        aoeCooldown: ENEMY_BOSS_AOE_COOLDOWN, aoeTimer: ENEMY_BOSS_AOE_COOLDOWN,
       }; break;
     default:
       base = {

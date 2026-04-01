@@ -112,9 +112,9 @@ export function addAllyToPlayer(
       break;
   }
 
-  const leader = playerState.allies.length > 0
-    ? playerState.allies[playerState.allies.length - 1]
-    : playerState;
+  // Attach to the tail of the ACTIVE chain (skip stranded turrets).
+  const lastActiveAlly = [...playerState.allies].reverse().find(a => !a.isStranded);
+  const leader = lastActiveAlly ?? playerState;
   const leaderCenter = getCenter(leader);
 
   let spawnX = leaderCenter.x - ALLY_SIZE.width / 2;

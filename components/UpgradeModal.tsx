@@ -1,8 +1,6 @@
-
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { Upgrade, Player, UpgradeType, LogEntry } from '../types';
 import { LockClosedIcon } from '@heroicons/react/24/solid';
-import { UI_BACKGROUND_NEUTRAL, UI_STROKE_PRIMARY, UI_STROKE_SECONDARY, UI_ACCENT_SUBTLE, UI_ACCENT_CRITICAL } from '../constants';
 
 interface UpgradeModalProps {
   player: Player;
@@ -13,206 +11,260 @@ interface UpgradeModalProps {
   onGoToMenu: () => void;
 }
 
-export const UpgradeModal: React.FC<UpgradeModalProps> = ({ player, upgrades, logs, onPurchase, onContinue, onGoToMenu }) => {
-  const modalContentRef = useRef<HTMLDivElement>(null);
+type ShopTab = 'COMBAT' | 'SQUAD' | 'AIRSTRIKE' | 'SHIELD' | 'ALLIES';
 
-  const [augmentHoverDetail, setAugmentHoverDetail] = useState<string | null>(null);
-  const [logHoverDetail, setLogHoverDetail] = useState<string | null>(null);
+const TABS: { id: ShopTab; label: string }[] = [
+  { id: 'COMBAT',    label: 'COMBAT'     },
+  { id: 'SQUAD',     label: 'SQUAD'      },
+  { id: 'AIRSTRIKE', label: 'AIR STRIKE' },
+  { id: 'SHIELD',    label: 'SHIELD'     },
+  { id: 'ALLIES',    label: 'ALLIES'     },
+];
 
-  const isAllyUnlockUpgrade = (id: UpgradeType): boolean => {
-    return [
-      UpgradeType.UNLOCK_FLAMER_ALLY,
-      UpgradeType.UNLOCK_MINIGUNNER_ALLY,
-      UpgradeType.UNLOCK_RPG_ALLY,
-      UpgradeType.UNLOCK_SNIPER_ALLY
-    ].includes(id);
+const TAB_UPGRADES: Record<ShopTab, UpgradeType[]> = {
+  COMBAT:    [UpgradeType.GLOBAL_DAMAGE_BOOST, UpgradeType.GLOBAL_FIRE_RATE_BOOST, UpgradeType.PLAYER_PROJECTILE_SPEED, UpgradeType.PLAYER_PIERCING_ROUNDS, UpgradeType.CHAIN_LIGHTNING_LEVEL],
+  SQUAD:     [UpgradeType.PLAYER_MAX_HEALTH, UpgradeType.PLAYER_SPEED, UpgradeType.GOLD_MAGNET, UpgradeType.SQUAD_SPACING, UpgradeType.INITIAL_ALLY_BOOST],
+  AIRSTRIKE: [UpgradeType.AIRSTRIKE_MISSILE_COUNT, UpgradeType.AIRSTRIKE_DAMAGE, UpgradeType.AIRSTRIKE_AOE],
+  SHIELD:    [UpgradeType.UNLOCK_SHIELD_ABILITY, UpgradeType.SHIELD_DURATION, UpgradeType.SHIELD_RADIUS, UpgradeType.SHIELD_COOLDOWN_REDUCTION],
+  ALLIES:    [UpgradeType.UNLOCK_SNIPER_ALLY, UpgradeType.UNLOCK_RPG_ALLY, UpgradeType.UNLOCK_FLAMER_ALLY, UpgradeType.UNLOCK_MINIGUNNER_ALLY],
+};
+
+const CYAN  = '#00E5FF';
+const GREEN = '#00FF88';
+const AMBER = '#FF9500';
+const RED   = '#FF2055';
+const DIM   = 'rgba(226,232,240,';
+
+export const UpgradeModal: React.FC<UpgradeModalProps> = ({
+  player, upgrades, logs, onPurchase, onContinue, onGoToMenu,
+}) => {
+  const [activeTab, setActiveTab] = useState<ShopTab>('COMBAT');
+  const [focusedId, setFocusedId] = useState<UpgradeType | null>(null);
+
+  const isShieldSub = (id: UpgradeType) =>
+    [UpgradeType.SHIELD_DURATION, UpgradeType.SHIELD_RADIUS, UpgradeType.SHIELD_COOLDOWN_REDUCTION].includes(id);
+
+  const getState = (u: Upgrade) => {
+    const locked = isShieldSub(u.id) && !player.shieldAbilityUnlocked;
+    const maxed  = u.currentLevel >= u.maxLevel;
+    const afford = player.gold >= u.cost;
+    return { locked, maxed, afford, disabled: locked || maxed || !afford };
   };
 
-  const unlockedLogsCount = logs.filter(log => log.isUnlocked).length;
-  const totalLogsCount = logs.length;
-  const logsPercentage = totalLogsCount > 0 ? Math.floor((unlockedLogsCount / totalLogsCount) * 100) : 0;
+  const tabIds      = TAB_UPGRADES[activeTab];
+  const tabUpgrades = tabIds.map(id => upgrades.find(u => u.id === id)).filter(Boolean) as Upgrade[];
+  const focused     = (focusedId ? upgrades.find(u => u.id === focusedId) : null) ?? tabUpgrades[0] ?? null;
+  const unlockedCount = logs.filter(l => l.isUnlocked).length;
 
-  const defaultAugmentMessage = "Hover over an augment for details.";
-  const defaultLogMessage = "Hover over a log entry for details.";
-
-  const getDynamicDescriptionAreaStyle = (isHovered: boolean): React.CSSProperties => ({
-    fontFamily: "'Inter', sans-serif", fontWeight: '300',
-    border: isHovered ? `1.5px dashed ${UI_ACCENT_SUBTLE}` : '1.5px solid transparent',
-    backgroundColor: isHovered ? `${UI_ACCENT_SUBTLE}22` : 'transparent',
-    color: isHovered ? UI_STROKE_PRIMARY : UI_STROKE_SECONDARY,
-    transition: 'background-color 0.1s ease-in-out, border-color 0.1s ease-in-out, color 0.1s ease-in-out',
-  });
-
-  const titleStyle: React.CSSProperties = { fontFamily: "'Inter', sans-serif", fontWeight: '700', textTransform: 'uppercase' };
-  const textStyle: React.CSSProperties = { fontFamily: "'Inter', sans-serif", fontWeight: '400' };
-  const lightTextStyle: React.CSSProperties = { fontFamily: "'Inter', sans-serif", fontWeight: '300' };
-  const costStyleBase: React.CSSProperties = { fontFamily: "'Inter', sans-serif", fontWeight: '600' };
-
+  const tabHasBuyable = (tab: ShopTab) =>
+    TAB_UPGRADES[tab].some(tid => {
+      const u = upgrades.find(u => u.id === tid);
+      if (!u) return false;
+      const { locked, maxed, afford } = getState(u);
+      return !locked && !maxed && afford;
+    });
 
   return (
-    <div 
-        className="fixed inset-0 flex items-center justify-center z-50 p-2"  // Reduced base padding
-        style={{ backgroundColor: 'transparent'}} 
-    >
-      <div
-        ref={modalContentRef}
-        className="flex flex-col p-2 sm:p-3 md:p-4 rounded-lg w-[95vw] sm:w-[90vw] max-w-5xl max-h-[95vh] sm:max-h-[90vh]" // Adjusted width and max-height
-        style={{ backgroundColor: UI_BACKGROUND_NEUTRAL, border: `1.5px solid ${UI_STROKE_PRIMARY}`, color: UI_STROKE_PRIMARY }}
-      >
-        {/* Scrollable Content Area */}
-        <div className="flex-grow overflow-y-auto pr-1 sm:pr-2"> {/* Keep pr for scrollbar */}
-          {/* SHOP Panel */}
-          <div className="p-2 sm:p-3 md:p-4 rounded-md mb-2 sm:mb-3" style={{border: `1.5px solid ${UI_STROKE_SECONDARY}`}}>
-            <div className="flex justify-between items-center mb-2 sm:mb-3">
-              <h2 className="text-lg sm:text-xl md:text-2xl" style={titleStyle}>SYSTEM AUGMENTS</h2>
-              <div className="flex items-center text-lg sm:text-xl md:text-2xl" style={{...titleStyle, fontWeight: '700'}}>
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-1 sm:mr-1.5">
-                  <circle cx="10" cy="10" r="8" stroke={UI_STROKE_PRIMARY} strokeWidth="1.5"/>
-                  <line x1="7" y1="10" x2="13" y2="10" stroke={UI_STROKE_PRIMARY} strokeWidth="1.5" strokeLinecap="round" />
-                  <line x1="10" y1="7" x2="10" y2="13" stroke={UI_STROKE_PRIMARY} strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-                {player.gold}
-              </div>
-            </div>
-            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-1 sm:gap-1.5 md:gap-2"> {/* Adjusted grid cols and gap */}
-              {upgrades.map((upgrade) => {
-                const isShieldSubUpgrade = [
-                    UpgradeType.SHIELD_DURATION,
-                    UpgradeType.SHIELD_RADIUS,
-                    UpgradeType.SHIELD_COOLDOWN_REDUCTION
-                ].includes(upgrade.id);
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 50,
+      display: 'flex', flexDirection: 'column',
+      background: 'radial-gradient(ellipse at 25% 15%, rgba(0,36,52,0.45) 0%, rgba(4,6,14,0) 55%), radial-gradient(ellipse at 75% 85%, rgba(0,18,36,0.35) 0%, rgba(4,6,14,0) 55%), #080A14',
+      fontFamily: "'Inter', sans-serif",
+      color: '#E2E8F0',
+    }}>
 
-                const isLockedByPrerequisite = isShieldSubUpgrade && !player.shieldAbilityUnlocked;
-                const isMaxed = upgrade.currentLevel >= upgrade.maxLevel;
-                const canAfford = player.gold >= upgrade.cost;
-                const isEffectivelyDisabled = isMaxed || !canAfford || isLockedByPrerequisite;
-                const IconComponent = upgrade.icon;
+      {/* HEADER */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: 'clamp(12px,3vw,20px) clamp(16px,4vw,32px)',
+        borderBottom: '1px solid rgba(0,229,255,0.1)',
+        flexShrink: 0,
+      }}>
+        <div>
+          <p style={{ margin: 0, fontSize: '0.6rem', letterSpacing: '0.22em', color: 'rgba(0,229,255,0.45)', fontWeight: 300, marginBottom: 3 }}>
+            BETWEEN WAVES
+          </p>
+          <h1 style={{ margin: 0, fontSize: 'clamp(1.3rem,4vw,2rem)', fontWeight: 100, letterSpacing: '0.22em', color: '#E2E8F0', textShadow: '0 0 30px rgba(0,229,255,0.12)' }}>
+            ARMORY
+          </h1>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,149,0,0.07)', border: '1px solid rgba(255,149,0,0.22)', borderRadius: 8, padding: '8px 14px' }}>
+          <svg width="13" height="13" viewBox="0 0 20 20" fill="none">
+            <circle cx="10" cy="10" r="8" stroke="#FF9500" strokeWidth="1.5"/>
+            <line x1="7" y1="10" x2="13" y2="10" stroke="#FF9500" strokeWidth="1.5" strokeLinecap="round"/>
+            <line x1="10" y1="7" x2="10" y2="13" stroke="#FF9500" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+          <span style={{ color: AMBER, fontWeight: 300, fontSize: 'clamp(1rem,2.5vw,1.15rem)', letterSpacing: '0.05em' }}>
+            {player.gold.toLocaleString()}
+          </span>
+        </div>
+      </div>
 
-                return (
-                  <button
-                    key={upgrade.id}
-                    onClick={() => {
-                      if (isEffectivelyDisabled) return;
-                      onPurchase(upgrade);
-                    }}
-                    onMouseEnter={() => {
-                        if (isLockedByPrerequisite) {
-                            setAugmentHoverDetail(`Requires "Deployable Shield Emitter" to be unlocked first.`);
-                        } else {
-                            setAugmentHoverDetail(`${upgrade.name}: ${upgrade.description}`);
-                        }
-                    }}
-                    onMouseLeave={() => setAugmentHoverDetail(null)}
-                    className={`relative p-1.5 sm:p-2 md:p-2.5 flex flex-col items-center justify-between rounded-md transition-all duration-150 focus:outline-none focus:ring-1 focus:ring-offset-1 focus:ring-offset-transparent`}
-                    style={{
-                      border: `1.5px solid ${isEffectivelyDisabled ? UI_ACCENT_SUBTLE : UI_STROKE_SECONDARY}`,
-                      backgroundColor: UI_BACKGROUND_NEUTRAL,
-                      opacity: (isMaxed || isLockedByPrerequisite) ? 0.7 : 1,
-                      cursor: isEffectivelyDisabled ? 'not-allowed' : 'pointer',
-                    }}
-                    aria-label={`Upgrade ${upgrade.name}. Cost: ${isMaxed ? 'Maxed' : upgrade.cost}. Level: ${upgrade.currentLevel}/${upgrade.maxLevel}. ${upgrade.description}`}
-                    aria-disabled={isEffectivelyDisabled}
-                  >
-                    <div className="absolute top-0.5 sm:top-1 left-1 right-1 flex justify-center space-x-0.5 h-1 sm:h-1.5"> {/* Adjusted top and height */}
-                      {upgrade.maxLevel > 1 && Array.from({ length: upgrade.maxLevel }).map((_, i) => (
-                        <div
-                          key={i}
-                          className="w-1.5 sm:w-2 h-1 sm:h-1.5 rounded-sm" // Adjusted size
-                          style={{ backgroundColor: i < upgrade.currentLevel ? UI_STROKE_PRIMARY : UI_ACCENT_SUBTLE }}
-                          aria-hidden="true"
-                        ></div>
-                      ))}
-                    </div>
-                    <div className="flex-grow flex items-center justify-center w-full mt-1.5 sm:mt-2.5"> {/* Adjusted margin top */}
-                       {isLockedByPrerequisite ? (
-                            <LockClosedIcon className="w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10" style={{ color: UI_ACCENT_SUBTLE }} />
-                        ) : (
-                            IconComponent && <IconComponent className="w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10" style={{color: isMaxed ? UI_STROKE_SECONDARY : (canAfford ? UI_STROKE_PRIMARY : UI_ACCENT_SUBTLE) }} aria-hidden="true" />
-                        )}
-                    </div>
-                    <div className="text-center w-full">
-                      <p className="text-[0.6rem] leading-tight sm:text-xs md:text-sm sm:leading-snug mt-0.5" style={{...lightTextStyle, color: UI_STROKE_SECONDARY}}>{isAllyUnlockUpgrade(upgrade.id) ? upgrade.name.replace('Acquire ', '').replace(' Unit', '') : upgrade.name}</p>
-                      <div className="text-[0.6rem] sm:text-xs md:text-sm">
-                        {isLockedByPrerequisite ? (
-                           <span style={{...costStyleBase, color: UI_STROKE_SECONDARY }}>LOCKED</span>
-                        ) : isMaxed ? (
-                          <span style={{...costStyleBase, color: UI_STROKE_SECONDARY }}>MAX</span>
-                        ) : (
-                          <span style={{...costStyleBase, color: canAfford ? UI_STROKE_PRIMARY : UI_ACCENT_CRITICAL }}>${upgrade.cost}</span>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            <div 
-              className="mt-2 sm:mt-3 p-1.5 sm:p-2 rounded-md text-[0.65rem] sm:text-xs md:text-sm min-h-[3em] sm:min-h-[3.5em] text-left" // Adjusted padding and font size
-              style={getDynamicDescriptionAreaStyle(!!augmentHoverDetail)}
+      {/* TABS */}
+      <div style={{ display: 'flex', padding: '0 clamp(8px,2vw,24px)', borderBottom: '1px solid rgba(0,229,255,0.07)', overflowX: 'auto', flexShrink: 0 }}>
+        {TABS.map(tab => {
+          const active     = activeTab === tab.id;
+          const hasBuyable = tabHasBuyable(tab.id);
+          return (
+            <button
+              key={tab.id}
+              onClick={() => { setActiveTab(tab.id); setFocusedId(null); }}
+              style={{
+                background: 'none', border: 'none', outline: 'none', cursor: 'pointer',
+                padding: 'clamp(8px,2vw,12px) clamp(12px,2.5vw,20px)',
+                fontSize: 'clamp(0.6rem,1.5vw,0.72rem)', fontWeight: active ? 400 : 300,
+                letterSpacing: '0.18em',
+                color: active ? CYAN : 'rgba(226,232,240,0.38)',
+                borderBottom: active ? `2px solid ${CYAN}` : '2px solid transparent',
+                transition: 'color 0.15s, border-color 0.15s',
+                whiteSpace: 'nowrap', position: 'relative',
+                fontFamily: "'Inter', sans-serif",
+              }}
             >
-              {augmentHoverDetail || defaultAugmentMessage}
-            </div>
-          </div>
+              {tab.label}
+              {hasBuyable && !active && (
+                <span style={{ position: 'absolute', top: 8, right: 8, width: 5, height: 5, borderRadius: '50%', background: GREEN, boxShadow: '0 0 5px rgba(0,255,136,0.9)' }}/>
+              )}
+            </button>
+          );
+        })}
+      </div>
 
-          {/* LOGS Panel */}
-          <div className="p-2 sm:p-3 md:p-4 rounded-md" style={{border: `1.5px solid ${UI_STROKE_SECONDARY}`}}>
-            <div className="flex justify-between items-center mb-1.5 sm:mb-2 md:mb-3">
-              <h2 className="text-md sm:text-lg md:text-xl" style={{...titleStyle, fontWeight: '600'}}>LOGS</h2>
-              <span className="text-md sm:text-lg md:text-xl" style={{...titleStyle, fontWeight: '600', color: UI_STROKE_PRIMARY}}>{logsPercentage}%</span>
-            </div>
-            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-1 sm:gap-1.5 md:gap-2 mb-1.5 sm:mb-2"> {/* Adjusted grid and gap */}
-              {logs.map((log) => {
-                const LogIcon = log.isUnlocked ? log.icon : LockClosedIcon;
-                return (
-                  <div
-                    key={log.id}
-                    className="flex flex-col items-center justify-center rounded-md p-1.5 sm:p-2 md:p-2.5" // Adjusted padding
-                    style={{
-                        border: `1.5px solid ${log.isUnlocked ? UI_STROKE_PRIMARY : UI_ACCENT_SUBTLE}`,
-                        backgroundColor: log.isUnlocked ? `${UI_STROKE_PRIMARY}15` : UI_BACKGROUND_NEUTRAL,
-                        cursor: 'default'
-                    }}
-                    onMouseEnter={() => {
-                        if (log.isUnlocked) {
-                            setLogHoverDetail(`${log.name}: ${log.description}`);
-                        } else {
-                            setLogHoverDetail(`LOCKED: ${log.name} - ${log.description}`);
-                        }
-                    }}
-                    onMouseLeave={() => setLogHoverDetail(null)}
-                    aria-label={log.isUnlocked ? `${log.name}: ${log.description}` : `Locked Log: ${log.name} - ${log.description}`}
-                    role="img"
-                    tabIndex={-1} 
-                  >
-                    <LogIcon
-                      className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" // Adjusted icon size
-                      style={{ color: log.isUnlocked ? UI_STROKE_PRIMARY : UI_ACCENT_SUBTLE }}
-                      aria-hidden="true"
-                    />
-                     <p className="text-[0.55rem] leading-tight sm:text-[0.6rem] md:text-xs text-center mt-0.5 w-full" style={{...lightTextStyle, color: log.isUnlocked ? UI_STROKE_PRIMARY : UI_STROKE_SECONDARY}}> {/* Adjusted font size */}
-                        {log.name}
-                     </p>
+      {/* MAIN CONTENT */}
+      <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: 'clamp(14px,3vw,24px) clamp(16px,4vw,32px)', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+        {/* Card grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(clamp(108px,21vw,148px), 1fr))', gap: 'clamp(8px,2vw,12px)' }}>
+          {tabUpgrades.map(upgrade => {
+            const { locked, maxed, afford, disabled } = getState(upgrade);
+            const isFocused = focused?.id === upgrade.id;
+            const IconComponent = upgrade.icon;
+
+            const s = maxed ? {
+              border: 'rgba(0,255,136,0.42)', bg: 'rgba(0,255,136,0.04)',
+              icon: GREEN, cost: GREEN, glow: '0 0 14px rgba(0,255,136,0.1)',
+            } : locked ? {
+              border: 'rgba(30,42,64,0.7)', bg: 'transparent',
+              icon: `${DIM}0.18)`, cost: `${DIM}0.22)`, glow: 'none',
+            } : !afford ? {
+              border: 'rgba(255,32,85,0.18)', bg: 'transparent',
+              icon: `${DIM}0.28)`, cost: RED, glow: 'none',
+            } : {
+              border: isFocused ? 'rgba(0,229,255,0.62)' : 'rgba(0,229,255,0.22)',
+              bg: isFocused ? 'rgba(0,229,255,0.07)' : 'rgba(0,229,255,0.025)',
+              icon: CYAN, cost: AMBER,
+              glow: isFocused ? '0 0 22px rgba(0,229,255,0.16), inset 0 0 12px rgba(0,229,255,0.03)' : '0 0 8px rgba(0,229,255,0.05)',
+            };
+
+            return (
+              <button
+                key={upgrade.id}
+                onClick={() => { setFocusedId(upgrade.id); if (!disabled) onPurchase(upgrade); }}
+                onMouseEnter={() => setFocusedId(upgrade.id)}
+                style={{
+                  background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10,
+                  cursor: disabled ? 'not-allowed' : 'pointer',
+                  boxShadow: s.glow !== 'none' ? s.glow : undefined,
+                  opacity: locked ? 0.45 : 1, transition: 'all 0.15s ease',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  padding: 'clamp(10px,2vw,14px) clamp(8px,1.5vw,12px)',
+                  gap: 6, minHeight: 'clamp(100px,18vw,140px)', position: 'relative', outline: 'none',
+                  fontFamily: "'Inter', sans-serif",
+                }}
+              >
+                {upgrade.maxLevel > 1 && (
+                  <div style={{ position: 'absolute', top: 7, left: 8, right: 8, display: 'flex', gap: 2 }}>
+                    {Array.from({ length: upgrade.maxLevel }).map((_, i) => (
+                      <div key={i} style={{ flex: 1, height: 2, borderRadius: 2, background: i < upgrade.currentLevel ? (maxed ? GREEN : CYAN) : 'rgba(226,232,240,0.09)' }}/>
+                    ))}
                   </div>
-                );
-              })}
+                )}
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: upgrade.maxLevel > 1 ? 8 : 0 }}>
+                  {locked
+                    ? <LockClosedIcon style={{ width: 28, height: 28, color: 'rgba(226,232,240,0.18)' }}/>
+                    : IconComponent && <IconComponent style={{ width: 28, height: 28, color: s.icon as string }}/>
+                  }
+                </div>
+                <p style={{ margin: 0, textAlign: 'center', fontSize: 'clamp(0.58rem,1.4vw,0.68rem)', fontWeight: 300, lineHeight: 1.3, color: maxed ? GREEN : `${DIM}0.72)`, letterSpacing: '0.02em' }}>
+                  {upgrade.name}
+                </p>
+                <p style={{ margin: 0, fontSize: 'clamp(0.62rem,1.6vw,0.72rem)', fontWeight: 600, color: s.cost as string, letterSpacing: '0.04em' }}>
+                  {locked ? 'LOCKED' : maxed ? '✓ MAX' : `$${upgrade.cost.toLocaleString()}`}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Description panel */}
+        {focused && (
+          <div style={{ padding: 'clamp(12px,2.5vw,16px) clamp(14px,3vw,20px)', background: 'rgba(0,229,255,0.025)', border: '1px solid rgba(0,229,255,0.1)', borderRadius: 10, flexShrink: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, gap: 8 }}>
+              <span style={{ fontSize: 'clamp(0.72rem,2vw,0.85rem)', fontWeight: 400, color: CYAN, letterSpacing: '0.06em' }}>
+                {focused.name}
+              </span>
+              {focused.maxLevel > 1 && (
+                <span style={{ fontSize: '0.62rem', color: `${DIM}0.35)`, fontWeight: 300, whiteSpace: 'nowrap' }}>
+                  LV {focused.currentLevel} / {focused.maxLevel}
+                </span>
+              )}
             </div>
-            <div 
-              className="mt-2 sm:mt-3 p-1.5 sm:p-2 rounded-md text-[0.65rem] sm:text-xs md:text-sm min-h-[3em] sm:min-h-[3.5em] text-left" // Adjusted padding and font size
-              style={getDynamicDescriptionAreaStyle(!!logHoverDetail)}
-            >
-              {logHoverDetail || defaultLogMessage}
-            </div>
-            <p className="text-center text-[0.65rem] sm:text-xs mt-1 sm:mt-1.5" style={{...lightTextStyle, color: UI_STROKE_SECONDARY}}> {/* Adjusted font size and margin */}
-              {unlockedLogsCount} / {totalLogsCount} LOG ENTRIES COMPILED
+            <p style={{ margin: 0, fontSize: 'clamp(0.68rem,1.8vw,0.78rem)', fontWeight: 300, color: `${DIM}0.6)`, lineHeight: 1.55 }}>
+              {focused.description}
             </p>
           </div>
-        </div>
+        )}
+      </div>
 
-        {/* Fixed Footer Buttons */}
-        <div className="mt-auto pt-1.5 sm:pt-2 md:pt-3 flex flex-col sm:flex-row justify-between items-center space-y-1.5 sm:space-y-0 sm:space-x-2"> {/* Adjusted padding and spacing */}
-          <button onClick={onGoToMenu} className="w-full sm:flex-1 btn-minimal text-xs sm:text-sm md:text-base py-1.5 sm:py-2">EXIT</button> {/* Adjusted padding and font size */}
-          <button onClick={onContinue} className="w-full sm:flex-1 btn-minimal btn-primary-minimal text-xs sm:text-sm md:text-base py-1.5 sm:py-2">CONTINUE</button> {/* Adjusted padding and font size */}
+      {/* MILESTONES STRIP */}
+      <div style={{ padding: 'clamp(8px,2vw,10px) clamp(16px,4vw,32px)', borderTop: '1px solid rgba(0,229,255,0.06)', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+        <span style={{ fontSize: '0.58rem', fontWeight: 300, letterSpacing: '0.18em', color: `${DIM}0.28)`, whiteSpace: 'nowrap' }}>
+          MILESTONES
+        </span>
+        <div style={{ display: 'flex', gap: 3, flex: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+          {logs.map(log => {
+            const LogIcon = log.icon;
+            return (
+              <div
+                key={log.id}
+                title={log.isUnlocked ? `✓ ${log.name}: ${log.description}` : `${log.name}: ${log.description}`}
+                style={{
+                  width: 22, height: 22, borderRadius: 4,
+                  border: `1px solid ${log.isUnlocked ? 'rgba(0,229,255,0.38)' : 'rgba(30,42,64,0.7)'}`,
+                  background: log.isUnlocked ? 'rgba(0,229,255,0.09)' : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'default',
+                  boxShadow: log.isUnlocked ? '0 0 5px rgba(0,229,255,0.1)' : 'none',
+                }}
+              >
+                {log.isUnlocked && <LogIcon style={{ width: 11, height: 11, color: CYAN }}/>}
+              </div>
+            );
+          })}
         </div>
+        <span style={{ fontSize: '0.62rem', fontWeight: 300, color: `${DIM}0.3)`, whiteSpace: 'nowrap' }}>
+          {unlockedCount}/{logs.length}
+        </span>
+      </div>
+
+      {/* FOOTER */}
+      <div style={{ display: 'flex', gap: 10, padding: 'clamp(10px,2.5vw,14px) clamp(16px,4vw,32px) clamp(16px,4vw,24px)', borderTop: '1px solid rgba(0,229,255,0.07)', flexShrink: 0 }}>
+        <button
+          onClick={onGoToMenu}
+          onMouseEnter={e => { const b = e.currentTarget; b.style.borderColor = 'rgba(226,232,240,0.3)'; b.style.color = '#E2E8F0'; }}
+          onMouseLeave={e => { const b = e.currentTarget; b.style.borderColor = 'rgba(226,232,240,0.13)'; b.style.color = 'rgba(226,232,240,0.42)'; }}
+          style={{ flex: 1, padding: 'clamp(10px,2vw,13px)', background: 'none', border: '1px solid rgba(226,232,240,0.13)', borderRadius: 8, cursor: 'pointer', color: 'rgba(226,232,240,0.42)', fontSize: 'clamp(0.65rem,1.8vw,0.75rem)', letterSpacing: '0.18em', fontWeight: 300, fontFamily: "'Inter', sans-serif", transition: 'all 0.15s' }}
+        >
+          EXIT
+        </button>
+        <button
+          onClick={onContinue}
+          onMouseEnter={e => { const b = e.currentTarget; b.style.background = 'rgba(0,229,255,0.14)'; b.style.boxShadow = '0 0 32px rgba(0,229,255,0.22)'; }}
+          onMouseLeave={e => { const b = e.currentTarget; b.style.background = 'rgba(0,229,255,0.08)'; b.style.boxShadow = '0 0 24px rgba(0,229,255,0.1), inset 0 1px 0 rgba(0,229,255,0.08)'; }}
+          style={{ flex: 2, padding: 'clamp(10px,2vw,13px)', background: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.38)', borderRadius: 8, cursor: 'pointer', color: CYAN, fontSize: 'clamp(0.65rem,1.8vw,0.75rem)', letterSpacing: '0.22em', fontWeight: 400, fontFamily: "'Inter', sans-serif", boxShadow: '0 0 24px rgba(0,229,255,0.1), inset 0 1px 0 rgba(0,229,255,0.08)', transition: 'all 0.15s' }}
+        >
+          DEPLOY →
+        </button>
       </div>
     </div>
   );

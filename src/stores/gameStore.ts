@@ -68,13 +68,46 @@ export interface GameStore extends GameState {
   setKeyUp: (key: string) => void;
   setMousePosition: (pos: Position | null) => void;
 
+  setControlScheme: (scheme: 'keyboard' | 'mouse') => void;
+
   // Dev helper
   maxOutAllUpgrades: () => void;
+  clearMetaProgress: () => void;
+}
+
+// ─── Meta-progress persistence ──────────────────────────────────────────────
+const META_KEY = 'linefire_meta';
+
+interface MetaProgress {
+  upgradeLevels: Record<string, number>;
+  unlockedAllyTypes: AllyType[];
+}
+
+function loadMeta(): MetaProgress | null {
+  try {
+    const raw = localStorage.getItem(META_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as MetaProgress;
+  } catch {
+    return null;
+  }
+}
+
+export function saveMeta(upgrades: { id: string; currentLevel: number }[], unlocked: AllyType[]): void {
+  const meta: MetaProgress = {
+    upgradeLevels: Object.fromEntries(upgrades.map(u => [u.id, u.currentLevel])),
+    unlockedAllyTypes: unlocked,
+  };
+  localStorage.setItem(META_KEY, JSON.stringify(meta));
+}
+
+export function clearMeta(): void {
+  localStorage.removeItem(META_KEY);
 }
 
 // ─── Initial state factory ────────────────────────────────────────────────────
-function buildInitialState(gameArea: Size, isTouchDevice: boolean): GameState {
-  const player: Player = {
+function buildInitialState(gameArea: Size, isTouchDevice: boolean, controlScheme?: 'keyboard' | 'mouse'): GameState {
+  let player: Player = {
     ...INITIAL_PLAYER_STATE,
     allies: [],
     championType: undefined,
@@ -98,6 +131,25 @@ function buildInitialState(gameArea: Size, isTouchDevice: boolean): GameState {
     shieldAbilityTimer: 0,
     currentChainLevel: 0,
   };
+
+  // ── Restore meta-progress (upgrades persist across sessions) ────────────────
+  let upgrades = INITIAL_UPGRADES.map(u => ({ ...u, cost: u.baseCost, currentLevel: 0 }));
+  let unlockedAllyTypes: AllyType[] = [AllyType.SHOTGUN, AllyType.RIFLEMAN, AllyType.GUN_GUY];
+  const meta = typeof localStorage !== 'undefined' ? loadMeta() : null;
+  if (meta) {
+    upgrades = upgrades.map(u => {
+      const savedLevel = meta.upgradeLevels[u.id as string] ?? 0;
+      if (savedLevel === 0) return u;
+      const def = INITIAL_UPGRADES.find(d => d.id === u.id)!;
+      for (let i = 0; i < savedLevel; i++) {
+        const result = def.apply(player, 0);
+        player = { ...result.player, gold: player.gold };
+      }
+      const cost = Math.floor(u.baseCost * Math.pow(u.costScalingFactor, savedLevel));
+      return { ...u, currentLevel: savedLevel, cost };
+    });
+    if (meta.unlockedAllyTypes.length > 0) unlockedAllyTypes = meta.unlockedAllyTypes;
+  }
 
   const cam: Position = {
     x: Math.max(0, Math.min(player.x + player.width / 2 - gameArea.width / 2, WORLD_AREA.width - gameArea.width)),
@@ -123,14 +175,16 @@ function buildInitialState(gameArea: Size, isTouchDevice: boolean): GameState {
     gameArea,
     worldArea: WORLD_AREA,
     camera: cam,
-    availableUpgrades: INITIAL_UPGRADES.map(u => ({ ...u, cost: u.baseCost, currentLevel: 0 })),
+    availableUpgrades: upgrades,
     keysPressed: {},
     mousePosition: null,
     nextRoundTimer: 0,
     nextAllySpawnTimer: ALLY_SPAWN_INTERVAL,
-    unlockedAllyTypes: [AllyType.SHOTGUN, AllyType.RIFLEMAN, AllyType.GUN_GUY],
+    nextAllyType: null,
+    unlockedAllyTypes,
     cameraShake: null,
     isTouchDevice,
+    controlScheme: controlScheme ?? (typeof localStorage !== 'undefined' ? (localStorage.getItem('linefire_control_scheme') as 'keyboard' | 'mouse' | null) ?? 'keyboard' : 'keyboard'),
     specialEnemyState: { ...INITIAL_SPECIAL_ENEMY_SPAWN_STATE },
     comboTimer: 0,
     airstrikeAvailable: false,
@@ -154,6 +208,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   ...buildInitialState(
     { width: window.innerWidth, height: window.innerHeight },
     typeof window !== 'undefined' && (('ontouchstart' in window) || navigator.maxTouchPoints > 0),
+    typeof localStorage !== 'undefined' ? (localStorage.getItem('linefire_control_scheme') as 'keyboard' | 'mouse' | null) ?? 'keyboard' : 'keyboard',
   ),
   joystickDirection: { x: 0, y: 0 },
 
@@ -181,6 +236,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const total = totalEnemiesForRound(roundNumber);
     const initial = 5;
     const freshSpecialState = { ...INITIAL_SPECIAL_ENEMY_SPAWN_STATE }; // reset BEFORE spawning
+    const isBossRound = roundNumber >= 5 && roundNumber % 5 === 0;
     const initialEnemies = [];
     for (let i = 0; i < initial; i++) {
       const type = determineNextEnemyType(roundNumber, initialEnemies, freshSpecialState);
@@ -190,7 +246,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     return {
       ...s,
       gameStatus: 'PLAYING',
-      player: { ...player, playerHitTimer: 0 },
+      player: { ...player, playerHitTimer: 0, pathHistory: [] },
       round: roundNumber,
       enemies: initialEnemies,
       projectiles: [],
@@ -207,9 +263,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
       airstrikesPending: 0,
       pendingInitialSpawns: gradual,
       initialSpawnTickCounter: gradual > 0 ? INITIAL_SPAWN_INTERVAL_TICKS : 0,
-      waveTitleText: `Wave ${roundNumber}`,
+      waveTitleText: isBossRound ? `⚠ BOSS WAVE — Round ${roundNumber} ⚠` : `Wave ${roundNumber}`,
       waveTitleTimer: WAVE_TITLE_STAY_DURATION_TICKS + WAVE_TITLE_FADE_OUT_DURATION_TICKS,
       damageTexts: [],
+      nextAllyType: s.unlockedAllyTypes.length > 0
+        ? s.unlockedAllyTypes[Math.floor(Math.random() * s.unlockedAllyTypes.length)]
+        : null,
     };
   }),
 
@@ -292,6 +351,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         ? { ...u, currentLevel: u.currentLevel + 1, cost: Math.floor(u.baseCost * Math.pow(u.costScalingFactor, u.currentLevel + 1)) }
         : u,
     );
+    saveMeta(newUpgrades, newUnlocked);
     return { ...s, player: newPlayer, availableUpgrades: newUpgrades, unlockedAllyTypes: newUnlocked, ...(updatedGameState ?? {}) };
   }),
 
@@ -368,7 +428,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   // ── Go to main menu ───────────────────────────────────────────────────────
   goToMenu: () => set(s => ({
-    ...buildInitialState(s.gameArea, s.isTouchDevice ?? false),
+    ...buildInitialState(s.gameArea, s.isTouchDevice ?? false, s.controlScheme),
     joystickDirection: { x: 0, y: 0 },
   })),
 
@@ -383,8 +443,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (s.gameStatus === 'PLAYING' && s.airstrikeAvailable && !s.airstrikeActive) {
       return { ...s, player: { ...s.player, comboCount: 0 }, airstrikeAvailable: false, airstrikeActive: true, airstrikesPending: count, airstrikeSpawnTimer: 0 };
     }
-    if (s.gameStatus === 'TUTORIAL_ACTIVE' && s.tutorialStep === 8 && s.player.airstrikeAvailable && !s.player.airstrikeActive) {
-      return { ...s, player: { ...s.player, comboCount: 0, airstrikeAvailable: false, airstrikeActive: true, airstrikesPending: count, airstrikeSpawnTimer: 0 } };
+    if (s.gameStatus === 'TUTORIAL_ACTIVE' && s.tutorialStep === 8 && s.player.airstrikeAvailable && !s.airstrikeActive) {
+      return { ...s,
+        player: { ...s.player, comboCount: 0, airstrikeAvailable: false },
+        airstrikeAvailable: false, airstrikeActive: true, airstrikesPending: count, airstrikeSpawnTimer: 0,
+      };
     }
     return s;
   }),
@@ -432,7 +495,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const camX = Math.max(0, Math.min(tp.x + tp.width / 2 - s.gameArea.width / 2, WORLD_AREA.width - s.gameArea.width));
     const camY = Math.max(0, Math.min(tp.y + tp.height / 2 - s.gameArea.height / 2, WORLD_AREA.height - s.gameArea.height));
     return {
-      ...buildInitialState(s.gameArea, s.isTouchDevice ?? false),
+      ...buildInitialState(s.gameArea, s.isTouchDevice ?? false, s.controlScheme),
       gameStatus: 'TUTORIAL_ACTIVE',
       player: tp, camera: { x: camX, y: camY },
       tutorialStep: 0, tutorialMessages: TUTORIAL_MESSAGES,
@@ -449,15 +512,101 @@ export const useGameStore = create<GameStore>((set, get) => ({
   advanceTutorialStep: () => set(s => {
     if (s.gameStatus !== 'TUTORIAL_ACTIVE') return s;
     const next = s.tutorialStep + 1;
+
+    // Tutorial finished — open upgrade shop directly
     if (next >= s.tutorialMessages.length) {
-      return { ...buildInitialState(s.gameArea, s.isTouchDevice ?? false), joystickDirection: { x: 0, y: 0 } };
+      return {
+        ...buildInitialState(s.gameArea, s.isTouchDevice ?? false, s.controlScheme),
+        gameStatus: 'SHOP' as const,
+        joystickDirection: { x: 0, y: 0 },
+      };
     }
-    return { ...s, tutorialStep: next, projectiles: [], shieldZones: [] };
+
+    // Typed-empty helpers (preserves array element types for TS)
+    const clearBase = {
+      ...s,
+      tutorialStep: next,
+      projectiles:       s.projectiles.slice(0, 0),
+      shieldZones:       s.shieldZones.slice(0, 0),
+      enemies:           s.enemies.slice(0, 0),
+      collectibleAllies: s.collectibleAllies.slice(0, 0),
+      goldPiles:         s.goldPiles.slice(0, 0),
+      damageTexts:       s.damageTexts.slice(0, 0),
+      effectParticles:   s.effectParticles.slice(0, 0),
+      muzzleFlashes:     s.muzzleFlashes.slice(0, 0),
+      comboTimer:        0,
+      airstrikeAvailable: false,
+      airstrikeActive:    false,
+      airstrikesPending:  0,
+    };
+
+    const px = s.player.x + s.player.width  / 2;
+    const py = s.player.y + s.player.height / 2;
+    const W  = s.worldArea.width, H = s.worldArea.height;
+    /** Spawn a TUTORIAL_DUMMY offset from the current player position, clamped to world bounds */
+    const dummy = (dx: number, dy: number) => {
+      const e = createEnemy(0, s.worldArea, EnemyType.TUTORIAL_DUMMY);
+      return { ...e,
+        x: Math.max(0, Math.min(px + dx - e.width  / 2, W - e.width)),
+        y: Math.max(0, Math.min(py + dy - e.height / 2, H - e.height)),
+      };
+    };
+
+    switch (next) {
+      case 1: // Auto-targeting: two stationary dummies
+        return { ...clearBase,
+          enemies: [dummy(200, -80), dummy(-180, 80)],
+          tutorialEntities: { ...s.tutorialEntities, tutorialHighlightTarget: null },
+        };
+
+      case 2: { // Ally pickup: spawn a collectible near the player
+        const ca = createCollectibleAlly(AllyType.RIFLEMAN, s.player, [], s.worldArea, true);
+        return { ...clearBase,
+          collectibleAllies: ca ? [ca] : s.collectibleAllies.slice(0, 0),
+          tutorialEntities: { ...s.tutorialEntities, tutorialHighlightTarget: 'allyTimer' },
+        };
+      }
+
+      case 3: // Gold: five killable dummies
+        return { ...clearBase,
+          enemies: [dummy(210, -100), dummy(-190, -80), dummy(150, 130), dummy(-130, 160), dummy(60, -210)],
+          tutorialEntities: { ...s.tutorialEntities, tutorialHighlightTarget: 'gold' },
+        };
+
+      case 4: return { ...clearBase, tutorialEntities: { ...s.tutorialEntities, tutorialHighlightTarget: 'health' } };
+      case 5: return { ...clearBase, tutorialEntities: { ...s.tutorialEntities, tutorialHighlightTarget: 'wave' } };
+      case 6: return { ...clearBase, tutorialEntities: { ...s.tutorialEntities, tutorialHighlightTarget: 'gold' } };
+      case 7: return { ...clearBase, tutorialEntities: { ...s.tutorialEntities, tutorialHighlightTarget: 'allyTimer' } };
+
+      case 8: { // Airstrike: pre-grant it and spawn live targets
+        return { ...clearBase,
+          enemies: [dummy(220, -60), dummy(-180, 90), dummy(110, 210), dummy(-110, -200), dummy(260, 150)],
+          player: { ...s.player, airstrikeAvailable: true },
+          tutorialEntities: { ...s.tutorialEntities, tutorialHighlightTarget: 'airstrike' },
+        };
+      }
+
+      case 9: // Shield: clear field, highlight slot
+        return { ...clearBase, tutorialEntities: { ...s.tutorialEntities, tutorialHighlightTarget: 'shieldAbility' } };
+
+      default:
+        return { ...clearBase, tutorialEntities: { ...s.tutorialEntities, tutorialHighlightTarget: null } };
+    }
   }),
 
-  endTutorialMode: () => set(s => ({ ...buildInitialState(s.gameArea, s.isTouchDevice ?? false), joystickDirection: { x: 0, y: 0 } })),
+  endTutorialMode: () => set(s => ({ ...buildInitialState(s.gameArea, s.isTouchDevice ?? false, s.controlScheme), joystickDirection: { x: 0, y: 0 } })),
 
   // ── Dev: max upgrades ────────────────────────────────────────────────────
+  setControlScheme: (scheme) => {
+    if (typeof localStorage !== 'undefined') localStorage.setItem('linefire_control_scheme', scheme);
+    set({ controlScheme: scheme });
+  },
+
+  clearMetaProgress: () => {
+    clearMeta();
+    set(s => buildInitialState(s.gameArea, s.isTouchDevice ?? false, s.controlScheme));
+  },
+
   maxOutAllUpgrades: () => set(s => {
     let p: Player = { ...s.player };
     const upgrades = s.availableUpgrades.map(u => {

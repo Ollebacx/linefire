@@ -8,13 +8,13 @@
  */
 import { v4 as uuidv4 } from 'uuid';
 import type { Player, Ally, Position, Size, GameStatus, Enemy, Projectile } from '../types';
-import { EnemyType } from '../types';
+import { EnemyType, AllyType } from '../types';
 import type { InputSnapshot } from '../systems/MovementSystem';
 import type { ComboState } from '../systems/ComboSystem';
 
 import { applyPlayerMovement, updateCamera, updateAllyMovement, chainAllyLeaders } from '../systems/MovementSystem';
 import { processProjectiles } from '../systems/ProjectileSystem';
-import { playerShoot, allyShoot, tickReload, enemyMeleeAttack, findClosestEnemy } from '../systems/CombatSystem';
+import { playerShoot, allyShoot, tickReload, enemyMeleeAttack, findClosestEnemy, isInsideShieldZone } from '../systems/CombatSystem';
 import { createEnemy, createCollectibleAlly, determineNextEnemyType } from '../systems/SpawnSystem';
 import { INITIAL_SPAWN_INTERVAL_TICKS } from '../systems/WaveSystem';
 import { tickCombo, registerKill, completeAirstrike } from '../systems/ComboSystem';
@@ -24,6 +24,20 @@ import {
 } from '../systems/EffectsSystem';
 import { AudioSystem } from '../systems/AudioSystem';
 import { addAllyToPlayer } from '../entities/createAlly';
+import type { SoundId } from '../systems/AudioSystem';
+
+/** Maps an AllyType to its corresponding shoot SoundId. */
+function allyShootSound(type: AllyType): SoundId {
+  switch (type) {
+    case AllyType.SHOTGUN:     return 'shoot_shotgun';
+    case AllyType.SNIPER:      return 'shoot_sniper';
+    case AllyType.RPG_SOLDIER: return 'shoot_rpg';
+    case AllyType.FLAMER:      return 'shoot_flamer';
+    case AllyType.MINIGUNNER:  return 'shoot_minigun';
+    case AllyType.RIFLEMAN:    return 'shoot_rifle';
+    default:                    return 'shoot_gun_guy';
+  }
+}
 
 import { useGameStore } from '../stores/gameStore';
 import { useUiStore } from '../stores/uiStore';
@@ -31,14 +45,15 @@ import { useUiStore } from '../stores/uiStore';
 import { checkCollision, distanceBetweenPoints, distanceBetweenGameObjects, getCenter } from '../utils/geometry';
 import {
   AIRSTRIKE_MISSILE_DAMAGE, AIRSTRIKE_MISSILE_AOE_RADIUS, AIRSTRIKE_MISSILE_SPEED,
-  AIRSTRIKE_PROJECTILE_SIZE, AIRSTRIKE_MISSILE_INTERVAL_TICKS,
-  ENEMY_PROJECTILE_SPEED, RPG_PROJECTILE_SIZE, PROJECTILE_SIZE,
+  AIRSTRIKE_PROJECTILE_SIZE, AIRSTRIKE_MISSILE_INTERVAL_TICKS, AIRSTRIKE_COMBO_THRESHOLD,
+  ENEMY_PROJECTILE_SPEED, RPG_PROJECTILE_SIZE, PROJECTILE_SIZE, PLAYER_HIT_FLASH_DURATION_TICKS,
 } from '../constants/player';
 import {
   ENEMY_ROCKET_TANK_PROJECTILE_SPEED, ENEMY_ROCKET_TANK_AOE_RADIUS,
+  ENEMY_BOSS_PROJECTILE_SPEED, ENEMY_BOSS_WARN_TICKS,
 } from '../constants/enemy';
-import { ALLY_SPAWN_INTERVAL } from '../constants/ally';
-import { GOLD_MAGNET_PULL_SPEED } from '../constants/player';
+import { ALLY_SPAWN_INTERVAL, ALLY_PICKUP_HEALTH_RESTORE } from '../constants/ally';
+import { GOLD_MAGNET_PULL_SPEED, PATH_HISTORY_LENGTH } from '../constants/player';
 import { UI_ACCENT_WARNING, UI_ACCENT_CRITICAL } from '../constants/ui';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -52,10 +67,20 @@ export class GameLoop {
   private rafId: number | null = null;
   private lastTimestamp         = 0;
   private accumulator           = 0;
+  /** True while the rAF loop is running — used by GameCanvas to skip duplicate renders. */
+  isRunning                     = false;
+  private renderCallback: (() => void) | null = null;
+  private _fpsFrameCount        = 0;
+
+  /** Register a render function driven by the rAF loop (once per frame, not once per tick). */
+  setRenderCallback(cb: (() => void) | null): void {
+    this.renderCallback = cb;
+  }
 
   // ── Start ──────────────────────────────────────────────────────────────────
   start() {
     if (this.rafId !== null) return;
+    this.isRunning = true;
     AudioSystem.resume();
     this.lastTimestamp = performance.now();
     this.rafId = requestAnimationFrame(this._loop);
@@ -67,27 +92,42 @@ export class GameLoop {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
     }
+    this.isRunning = false;
+    // One final render so pausing/shop transitions display the correct state.
+    this.renderCallback?.();
   }
 
   // ── Inner rAF callback ─────────────────────────────────────────────────────
   private _loop = (timestamp: number) => {
     this.rafId = requestAnimationFrame(this._loop);
 
-    const elapsed = timestamp - this.lastTimestamp;
+    const rawElapsed = timestamp - this.lastTimestamp;
+    // Clamp to 50 ms: prevents burst accumulation after a tab-switch or GC pause.
+    const elapsed = Math.min(rawElapsed, 50);
     this.lastTimestamp = timestamp;
     this.accumulator += elapsed;
 
-    // Fixed-step update (up to 3 catch-up ticks to avoid spiral of death)
+    // Run at most 2 catch-up ticks per rAF frame.
     let ticks = 0;
-    while (this.accumulator >= TARGET_FRAME_MS && ticks < 3) {
+    while (this.accumulator >= TARGET_FRAME_MS && ticks < 2) {
       this._tick();
       this.accumulator -= TARGET_FRAME_MS;
       ticks++;
     }
+    // If still behind after 2 ticks, drain rather than oscillate.
+    // This trades a momentary slow-down for a stable frame rate.
+    if (this.accumulator > TARGET_FRAME_MS) this.accumulator = 0;
 
-    // FPS counter (sampled each call)
-    if (ticks > 0 && elapsed > 0) {
-      useUiStore.getState().setFps(Math.min(Math.round(1000 / elapsed), 999));
+    // ── Render exactly once per rAF frame ─────────────────────────────────
+    // The Zustand subscription in GameCanvas is bypassed during gameplay
+    // (isRunning = true) so we never get 2+ Pixi render passes per rAF.
+    if (ticks > 0) this.renderCallback?.();
+
+    // FPS counter throttled to every 30 frames — setFps() triggers a React
+    // re-render of the HUD component; calling it at 60 Hz is wasteful.
+    if (++this._fpsFrameCount >= 30 && rawElapsed > 0) {
+      this._fpsFrameCount = 0;
+      useUiStore.getState().setFps(Math.min(Math.round(1000 / rawElapsed), 999));
     }
   };
 
@@ -117,11 +157,20 @@ export class GameLoop {
       mousePosition:    store.mousePosition ?? null,
       joystickDirection: store.joystickDirection,
       isTouchDevice:    store.isTouchDevice ?? false,
+      controlScheme:    store.controlScheme ?? 'keyboard',
     };
 
     // ── 2. Player movement ─────────────────────────────────────────────────
+    // OVERCLOCK: below 30% HP → speed +40%, danger mode
+    const hpRatio = store.player.maxHealth > 0 ? store.player.health / store.player.maxHealth : 1;
+    const isOverclock = hpRatio < 0.30 && store.player.health > 0;
+    const baseSpeed = store.player.speed;
+    const movementSource = isOverclock
+      ? { ...store.player, speed: baseSpeed * 1.4 }
+      : store.player;
     let newPlayer: Player = {
-      ...applyPlayerMovement({ ...store.player }, input, store.gameArea, store.camera),
+      ...applyPlayerMovement({ ...movementSource }, input, store.gameArea, store.camera),
+      speed: baseSpeed, // always persist base speed — never save the OVERCLOCK multiplier
       allies: store.player.allies.map(a => ({ ...a })),
     };
 
@@ -130,13 +179,26 @@ export class GameLoop {
     );
 
     // ── 3. Ally movement ───────────────────────────────────────────────────
-    chainAllyLeaders(newPlayer.allies, newPlayer.id);
-    newPlayer.allies = newPlayer.allies.map((ally, idx) => {
-      const leaders: Array<Player | Ally> = idx === 0
-        ? [newPlayer]
-        : [newPlayer.allies[idx - 1]];
-      return updateAllyMovement({ ...ally }, leaders, newPlayer.squadSpacingMultiplier);
-    });
+    // Active (non-stranded) allies form the chain from the player.
+    // Stranded allies are turrets: they stay put but update pathHistory for aiming.
+    let prevActive: Player | Ally = newPlayer;
+    const movedAllies: typeof newPlayer.allies = [];
+    for (const ally of newPlayer.allies) {
+      if (ally.isStranded) {
+        // Turret: freeze position, but keep pathHistory so shooting direction works
+        const a = { ...ally };
+        const center = getCenter(a);
+        a.pathHistory = [center, ...(a.pathHistory ?? [])].slice(0, PATH_HISTORY_LENGTH);
+        movedAllies.push(a);
+      } else {
+        // Active: follow the previous active entity in chain
+        const a = { ...ally, leaderId: prevActive.id };
+        const moved = updateAllyMovement(a, [prevActive], newPlayer.squadSpacingMultiplier);
+        movedAllies.push(moved);
+        prevActive = moved;
+      }
+    }
+    newPlayer.allies = movedAllies;
 
     // ── 4. Reload / timer ticks ────────────────────────────────────────────
     newPlayer = tickReload(newPlayer, newPlayer.globalFireRateModifier) as Player;
@@ -155,24 +217,44 @@ export class GameLoop {
     const shootDir = this._computeShootDir(newPlayer, store, newCamera, viewport);
     if (shootDir) newPlayer = { ...newPlayer, lastShootingDirection: shootDir };
     if (shootDir) {
-      const result = playerShoot(newPlayer, shootDir, newPlayer.globalFireRateModifier);
-      newPlayer = result.player;
+      // OVERCLOCK: +50% damage below 30% HP
+      const shootSource = isOverclock ? { ...newPlayer, damage: newPlayer.damage * 1.5 } : newPlayer;
+      const result = playerShoot(shootSource, shootDir, newPlayer.globalFireRateModifier);
+      newPlayer = { ...newPlayer, shootTimer: result.player.shootTimer, ammoLeftInClip: result.player.ammoLeftInClip, currentReloadTimer: result.player.currentReloadTimer, lastShootingDirection: shootDir };
       newProjectiles.push(...result.projectiles);
       if (result.muzzleFlash) newMuzzleFlashes.push(result.muzzleFlash);
+      if (result.projectiles.length > 0) {
+        const ct = newPlayer.championType;
+        if      (ct === AllyType.SHOTGUN)     AudioSystem.play('shoot_shotgun');
+        else if (ct === AllyType.SNIPER)      AudioSystem.play('shoot_sniper');
+        else if (ct === AllyType.RPG_SOLDIER) AudioSystem.play('shoot_rpg');
+        else if (ct === AllyType.FLAMER)      AudioSystem.play('shoot_flamer');
+        else if (ct === AllyType.MINIGUNNER)  AudioSystem.play('shoot_minigun');
+        else if (ct === AllyType.RIFLEMAN)    AudioSystem.play('shoot_rifle');
+        else                                   AudioSystem.play('shoot_gun_guy');
+      }
     }
 
+    // FORMATION BONUS: 4+ allies → fire rate +25%
+    const formBonus = newPlayer.allies.length >= 4 ? 1.25 : 1.0;
+    let allyShootSoundsThisFrame = 0;
     newPlayer.allies = newPlayer.allies.map(ally => {
       const dir = this._computeAllyShootDir(ally, store, newCamera, viewport);
       if (!dir) return ally;
-      const res = allyShoot({ ...ally, lastShootingDirection: dir }, dir, newPlayer.globalFireRateModifier, newPlayer.globalDamageModifier);
+      const res = allyShoot({ ...ally, lastShootingDirection: dir }, dir, newPlayer.globalFireRateModifier * formBonus, newPlayer.globalDamageModifier);
       newProjectiles.push(...res.projectiles);
       if (res.muzzleFlash) newMuzzleFlashes.push(res.muzzleFlash);
+      if (res.projectiles.length > 0 && allyShootSoundsThisFrame < 2) {
+        AudioSystem.play(allyShootSound(ally.allyType));
+        allyShootSoundsThisFrame++;
+      }
       return { ...res.ally, lastShootingDirection: dir };
     });
 
     // ── 5.5. Enemy movement ────────────────────────────────────────────────
+    // Pre-compute target list once — avoids O(allies) array allocation per enemy
+    const allTargets: Array<Player | Ally> = [newPlayer, ...newPlayer.allies];
     let newEnemies: Enemy[] = store.enemies.map(enemy => {
-      const allTargets: Array<Player | Ally> = [newPlayer, ...newPlayer.allies];
       let nearestTarget: Player | Ally = newPlayer;
       let nearestDist = Infinity;
       for (const t of allTargets) {
@@ -202,24 +284,95 @@ export class GameLoop {
         y: Math.max(0, Math.min(enemy.y + moveY, store.worldArea.height - enemy.height)),
         velocity: { x: moveX, y: moveY },
         attackTimer: Math.max(0, enemy.attackTimer - 1),
+        hitTimer:    enemy.hitTimer != null && enemy.hitTimer > 0 ? enemy.hitTimer - 1 : 0,
         aoeTimer:    enemy.aoeTimer    != null ? Math.max(0, enemy.aoeTimer    - 1) : undefined,
       };
     });
 
-    // ── 6. Enemy melee + ranged attacks ────────────────────────────────────
+    // ── 5.6. Boss phase 2 (≤50% HP → enrage) ─────────────────────────────
     let newDamageTexts = [...store.damageTexts];
+    let newCamShake = store.cameraShake;
+    const playerHealthBeforeHit = newPlayer.health;
+    let bossJustTransitioned = false;
+    newEnemies = newEnemies.map(enemy => {
+      if (enemy.enemyType !== EnemyType.BOSS || enemy.bossPhase === 2) return enemy;
+      const hpRatio = enemy.maxHealth > 0 ? enemy.health / enemy.maxHealth : 1;
+      if (hpRatio > 0.5) return enemy;
+      bossJustTransitioned = true;
+      AudioSystem.play('boss_spawn');
+      newCamShake = { intensity: 12, duration: 35, timer: 35 };
+      newDamageTexts.push({
+        id: uuidv4(), text: '⚠ PHASE 2 ⚠',
+        x: enemy.x + enemy.width / 2, y: enemy.y - 36,
+        timer: 180, color: '#FF2055', velocityY: -0.5,
+        fontSize: 22, fontWeight: 'bold',
+      });
+      return {
+        ...enemy, bossPhase: 2,
+        speed: enemy.speed * 1.8,
+        attackCooldown: Math.max(20, Math.floor(enemy.attackCooldown * 0.5)),
+        aoeCooldown: enemy.aoeCooldown != null ? Math.max(30, Math.floor(enemy.aoeCooldown * 0.6)) : enemy.aoeCooldown,
+        aoeTimer: ENEMY_BOSS_WARN_TICKS,
+      };
+    });
+    if (bossJustTransitioned) {
+      for (let bi = 0; bi < 2; bi++) {
+        newEnemies.push(createEnemy(store.round, store.worldArea, EnemyType.MELEE_GRUNT));
+      }
+    }
+
+    // ── 6. Enemy melee + ranged attacks ────────────────────────────────────
     const RANGED_ENEMY_TYPES = new Set([
       EnemyType.RANGED_SHOOTER, EnemyType.ROCKET_TANK, EnemyType.ENEMY_SNIPER,
     ]);
+    // Re-use allTargets (same composition as step 5.5 — allTargets was computed before any melee mutation)
+    const rangedTargets = allTargets;
 
-    newEnemies = newEnemies.map(enemy => {
+    newEnemies = newEnemies.map(enemy => {      // ── Boss: fires ranged projectiles (phase 1: single, phase 2: 3-way spread) ──
+      if (enemy.enemyType === EnemyType.BOSS) {
+        if (enemy.attackTimer === 0) {
+          let nearestTarget: Player | Ally = newPlayer;
+          let nearestDist = Infinity;
+          for (const t of rangedTargets) {
+            const d = distanceBetweenGameObjects(enemy, t);
+            if (d < nearestDist) { nearestDist = d; nearestTarget = t; }
+          }
+          if (nearestDist <= enemy.attackRange) {
+            const bec = getCenter(enemy);
+            const btc = getCenter(nearestTarget);
+            const ddx = btc.x - bec.x, ddy = btc.y - bec.y;
+            const dlen = Math.sqrt(ddx * ddx + ddy * ddy);
+            if (dlen > 0) {
+              const nx = ddx / dlen, ny = ddy / dlen;
+              const angleOffsets = enemy.bossPhase === 2
+                ? [-28 * Math.PI / 180, 0, 28 * Math.PI / 180]
+                : [0];
+              for (const aOff of angleOffsets) {
+                const bdx = nx * Math.cos(aOff) - ny * Math.sin(aOff);
+                const bdy = nx * Math.sin(aOff) + ny * Math.cos(aOff);
+                newProjectiles.push({
+                  id: uuidv4(),
+                  x: bec.x - RPG_PROJECTILE_SIZE.width / 2,
+                  y: bec.y - RPG_PROJECTILE_SIZE.height / 2,
+                  width: RPG_PROJECTILE_SIZE.width, height: RPG_PROJECTILE_SIZE.height,
+                  velocity: { x: bdx * ENEMY_BOSS_PROJECTILE_SPEED, y: bdy * ENEMY_BOSS_PROJECTILE_SPEED },
+                  damage: enemy.attackDamage,
+                  ownerId: enemy.id, isPlayerProjectile: false,
+                  color: UI_ACCENT_CRITICAL, causesShake: true,
+                } as Projectile);
+              }
+              return { ...enemy, attackTimer: enemy.attackCooldown };
+            }
+          }
+        }
+        return enemy;
+      }
       // ── Ranged enemies: fire a visible projectile ─────────────────────────
       if (RANGED_ENEMY_TYPES.has(enemy.enemyType)) {
         if (enemy.attackTimer === 0) {
-          const allTargets: Array<Player | Ally> = [newPlayer, ...newPlayer.allies];
           let nearestTarget: Player | Ally = newPlayer;
           let nearestDist = Infinity;
-          for (const t of allTargets) {
+          for (const t of rangedTargets) {
             const d = distanceBetweenGameObjects(enemy, t);
             if (d < nearestDist) { nearestDist = d; nearestTarget = t; }
           }
@@ -281,7 +434,41 @@ export class GameLoop {
       return meleeP.enemy;
     });
 
-    // ── 7. Projectile system ───────────────────────────────────────────────
+    // ── 6.5. Boss / Drone AoE pulse ───────────────────────────────────
+    newEnemies = newEnemies.map(enemy => {
+      if (enemy.aoeDamage == null || enemy.aoeTimer == null || enemy.aoeTimer > 0) return enemy;
+      if (enemy.health <= 0) return enemy;
+      const aoeEc = getCenter(enemy);
+      const aoeR  = enemy.aoeRadius ?? 0;
+      // Hit player
+      if (distanceBetweenPoints(aoeEc, getCenter(newPlayer)) <= aoeR &&
+          !isInsideShieldZone(newPlayer, store.shieldZones)) {
+        newPlayer = { ...newPlayer, health: newPlayer.health - enemy.aoeDamage, playerHitTimer: PLAYER_HIT_FLASH_DURATION_TICKS };
+        newDamageTexts.push({
+          id: uuidv4(), text: `-${enemy.aoeDamage}`,
+          x: newPlayer.x + newPlayer.width / 2 + (Math.random() * 20 - 10), y: newPlayer.y - 10,
+          timer: 50, color: UI_ACCENT_CRITICAL, velocityY: -1.4, fontSize: 15, fontWeight: 'bold',
+        });
+        AudioSystem.play('player_hit');
+      }
+      // Hit allies
+      newPlayer.allies = newPlayer.allies.map(ally =>
+        distanceBetweenPoints(aoeEc, getCenter(ally)) <= aoeR
+          ? { ...ally, health: ally.health - enemy.aoeDamage! }
+          : ally,
+      );
+      // Camera shake for boss pulse
+      if (enemy.enemyType === EnemyType.BOSS) {
+        newCamShake = { intensity: 8, duration: 22, timer: 22 };
+        AudioSystem.play('airstrike_impact');
+      }
+      return { ...enemy, aoeTimer: enemy.aoeCooldown! };
+    });
+
+    // ── 7. Projectile system ────────────────────────────────────
+    // Hard cap: prevents O(P×E) collision cost from exploding at high wave counts
+    // Drop the oldest (front of array) when over limit
+    if (newProjectiles.length > 120) newProjectiles = newProjectiles.slice(newProjectiles.length - 120);
     const projResult = processProjectiles(
       newProjectiles, newEnemies, newPlayer, store.shieldZones,
       newCamera, viewport, !isTutorial || store.tutorialStep >= 1,
@@ -292,11 +479,22 @@ export class GameLoop {
     let newParticles     = [...store.effectParticles, ...projResult.newEffectParticles];
     newDamageTexts = [...newDamageTexts, ...projResult.newDamageTexts];
     let newChainEffects  = [...store.chainLightningEffects, ...projResult.newChainLightningEffects];
-    let newCamShake      = projResult.cameraShake ?? store.cameraShake;
+    newCamShake = projResult.cameraShake ?? newCamShake;
+    // Hard caps on VFX arrays to prevent render-loop overload
+    if (newParticles.length   > 50)  newParticles   = newParticles.slice(newParticles.length - 50);
+    if (newDamageTexts.length > 35)  newDamageTexts = newDamageTexts.slice(newDamageTexts.length - 35);
+    // SFX: hits, chain lightning
+    if (projResult.hitCount > 0)                         AudioSystem.play('enemy_hit');
+    if (projResult.newChainLightningEffects.length > 0)  AudioSystem.play('chain_lightning');
+    if (projResult.playerHitByProjectile)                AudioSystem.play('player_hit');
+    // Low-health danger mode: music changes below 25 % HP
+    const postHpRatio = newPlayer.maxHealth > 0 ? newPlayer.health / newPlayer.maxHealth : 1;
+    AudioSystem.setDangerMode(newPlayer.health > 0 && postHpRatio < 0.25);
 
     // ── 8. Gold / coin magnet ──────────────────────────────────────────────
     let newGoldPiles = [...store.goldPiles, ...projResult.newGoldPiles];
     const newGoldPilesResult: typeof newGoldPiles = [];
+    let goldCollectedThisFrame = false;
     for (const gp of newGoldPiles) {
       if (checkCollision(gp, newPlayer)) {
         // Physically touching — collect
@@ -305,6 +503,10 @@ export class GameLoop {
           gold: newPlayer.gold + gp.value,
           currentRunGoldEarned: newPlayer.currentRunGoldEarned + gp.value,
         };
+        if (!goldCollectedThisFrame) {
+          AudioSystem.play('gold_collect');
+          goldCollectedThisFrame = true;
+        }
       } else {
         const gpC  = getCenter(gp);
         const plC  = getCenter(newPlayer);
@@ -331,11 +533,25 @@ export class GameLoop {
       airstrikeActive:   store.airstrikeActive,
     };
 
+    // ── Combo break on player hit ──────────────────────────────────────────
+    if (newPlayer.health < playerHealthBeforeHit && comboState.comboCount > 0) {
+      comboState = { ...comboState, comboCount: 0, comboTimer: 0 };
+      newPlayer  = { ...newPlayer, comboCount: 0 };
+    }
+
     if (projResult.killCount > 0) {
       currentWaveEnemies += projResult.killCount;
+      const prevCombo = comboState.comboCount;
       comboState = registerKill(comboState, projResult.killCount);
       newPlayer  = { ...newPlayer, comboCount: comboState.comboCount, currentRunKills: newPlayer.currentRunKills + projResult.killCount };
       AudioSystem.play('enemy_death');
+      // Combo milestone sounds at 5, 10, 20
+      const nc = comboState.comboCount;
+      if ((nc >= 5 && prevCombo < 5) || (nc >= 10 && prevCombo < 10) || (nc >= 20 && prevCombo < 20)) {
+        AudioSystem.play('combo_milestone');
+      }
+      // Boss kill
+      if (projResult.bossKillCount > 0) AudioSystem.play('boss_death');
     }
     if (projResult.tankKillCount > 0) {
       newPlayer = { ...newPlayer, currentRunTanksDestroyed: (newPlayer.currentRunTanksDestroyed ?? 0) + projResult.tankKillCount };
@@ -375,9 +591,36 @@ export class GameLoop {
     }
     newPlayer = { ...newPlayer, comboCount: comboState.comboCount, airstrikeAvailable: comboState.airstrikeAvailable, airstrikeActive: comboState.airstrikeActive, airstrikesPending, airstrikeSpawnTimer };
 
-    // ── 11. Ally death ─────────────────────────────────────────────────────
+    // ── 11. Ally death + stranding ─────────────────────────────────────────
     const hadAlly = newPlayer.allies.length;
-    newPlayer.allies = newPlayer.allies.filter(a => a.health > 0);
+    // Track who was already stranded BEFORE this tick — only these can be recovered in step 12.
+    const alreadyStrandedIds = new Set<string>(
+      newPlayer.allies.filter(a => a.isStranded).map(a => a.id),
+    );
+    // Collect IDs of active allies that just died — they break the chain for those behind them.
+    const dyingActiveIds = new Set<string>(
+      newPlayer.allies.filter(a => a.health <= 0 && !a.isStranded).map(a => a.id),
+    );
+    // Propagate: if your leader is dying or being newly stranded, you get stranded too.
+    const toStrand = new Set<string>(dyingActiveIds);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const a of newPlayer.allies) {
+        if (!toStrand.has(a.id) && !a.isStranded && a.leaderId && toStrand.has(a.leaderId)) {
+          toStrand.add(a.id);
+          changed = true;
+        }
+      }
+    }
+    newPlayer.allies = newPlayer.allies
+      .filter(a => a.health > 0)
+      .map(a => {
+        if (!a.isStranded && toStrand.has(a.id)) {
+          return { ...a, isStranded: true, leaderId: null };
+        }
+        return a;
+      });
     if (newPlayer.allies.length < hadAlly) AudioSystem.play('player_hit');
 
     // ── 12. Collectible ally pickup ────────────────────────────────────────
@@ -391,6 +634,19 @@ export class GameLoop {
       return true;
     });
 
+    // Stranded ally recovery: only allies that were ALREADY stranded before this tick
+    // can be recovered (prevents instant re-pickup the same tick a death occurs).
+    newPlayer.allies = newPlayer.allies.map(a => {
+      if (!a.isStranded) return a;
+      if (!alreadyStrandedIds.has(a.id)) return a; // just stranded this tick — skip
+      if (!checkCollision(newPlayer, a)) return a;
+      // Attach to the tail of the active chain.
+      const lastActive = [...newPlayer.allies].reverse().find(x => !x.isStranded);
+      newPlayer.health = Math.min(newPlayer.maxHealth, newPlayer.health + ALLY_PICKUP_HEALTH_RESTORE);
+      AudioSystem.play('ally_collect');
+      return { ...a, isStranded: false, leaderId: lastActive ? lastActive.id : newPlayer.id };
+    });
+
     // ── 13. Enemy spawn (gradual) ──────────────────────────────────────────
     if (!isTutorial && pendingInitialSpawns > 0) {
       initialSpawnTickCounter--;
@@ -398,6 +654,7 @@ export class GameLoop {
         const type = determineNextEnemyType(store.round, newEnemies, specialEnemyState);
         if (type) {
           newEnemies.push(createEnemy(store.round, store.worldArea, type));
+          if (type === EnemyType.BOSS) AudioSystem.play('boss_spawn');
           pendingInitialSpawns--;
         }
         initialSpawnTickCounter = INITIAL_SPAWN_INTERVAL_TICKS;
@@ -406,12 +663,14 @@ export class GameLoop {
 
     // ── 14. Ally collectible spawn ─────────────────────────────────────────
     let newNextAllySpawnTimer = store.nextAllySpawnTimer - DELTA_SECONDS;
+    let nextAllyTypeForStore: AllyType | null = store.nextAllyType ?? null;
     if (newNextAllySpawnTimer <= 0 && !isTutorial) {
       const allTypes = store.unlockedAllyTypes;
       if (allTypes.length > 0) {
-        const type = allTypes[Math.floor(Math.random() * allTypes.length)];
+        const type = store.nextAllyType ?? allTypes[Math.floor(Math.random() * allTypes.length)];
         const ca = createCollectibleAlly(type, newPlayer, newCollectibles, store.worldArea);
         if (ca) newCollectibles.push(ca);
+        nextAllyTypeForStore = allTypes[Math.floor(Math.random() * allTypes.length)];
       }
       newNextAllySpawnTimer = ALLY_SPAWN_INTERVAL;
     }
@@ -482,6 +741,7 @@ export class GameLoop {
       specialEnemyState,
       nextRoundTimer,
       nextAllySpawnTimer:   newNextAllySpawnTimer,
+      nextAllyType:         nextAllyTypeForStore,
       airstrikeAvailable:   comboState.airstrikeAvailable,
       airstrikeActive:      comboState.airstrikeActive,
       airstrikesPending,

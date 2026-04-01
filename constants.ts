@@ -8,16 +8,16 @@ import {
     ClockIcon, CogIcon, ShareIcon, CircleStackIcon // Removed Turret-specific icons
 } from '@heroicons/react/24/solid';
 
-// UI Colors
-export const UI_BACKGROUND_NEUTRAL = '#F3F4F6'; // Light Gray
-export const UI_STROKE_PRIMARY = '#111827';     // Near Black
-export const UI_STROKE_SECONDARY = '#4B5563';  // Darker Gray for accents
-export const UI_ACCENT_SUBTLE = '#D1D5DB';     // Subtle Gray for inactive/borders
-export const UI_ACCENT_CRITICAL = '#EF4444';   // A single critical accent for things like low health or errors (use sparingly)
-export const UI_ACCENT_HEALTH = '#22C55E';     // Green for health bar
-export const UI_ACCENT_WARNING = '#F97316';    // Orange for warnings or special abilities like airstrike
-export const UI_ACCENT_SHIELD = '#3B82F6';   // Blue for shield effects
-export const UI_ACCENT_LIGHTNING = '#00AFFF'; // Vibrant Electric Blue for lightning effects
+// UI Colors — Dark Neon Edition
+export const UI_BACKGROUND_NEUTRAL = '#080A14'; // Deep dark navy
+export const UI_STROKE_PRIMARY = '#E2E8F0';     // Near-white
+export const UI_STROKE_SECONDARY = '#94A3B8';   // Muted slate
+export const UI_ACCENT_SUBTLE = '#1E2A40';      // Dark for inactive/borders
+export const UI_ACCENT_CRITICAL = '#FF2055';    // Neon red-pink
+export const UI_ACCENT_HEALTH = '#00FF88';      // Neon green
+export const UI_ACCENT_WARNING = '#FF9500';     // Neon amber
+export const UI_ACCENT_SHIELD = '#00AAFF';      // Neon blue
+export const UI_ACCENT_LIGHTNING = '#00E5FF';   // Electric cyan
 
 
 export const WORLD_WIDTH = 2000;
@@ -134,6 +134,8 @@ export const ENEMY_ROCKET_TANK_PROJECTILE_SPEED = 2.2;
 export const ENEMY_ROCKET_TANK_POINTS = 50;
 export const ENEMY_ROCKET_TANK_AOE_RADIUS = 75;
 
+export const ENEMY_BOSS_PROJECTILE_SPEED = 3.5;
+
 export const ENEMY_AGILE_STALKER_HEALTH = 25;
 export const ENEMY_AGILE_STALKER_DAMAGE = 8;
 export const ENEMY_AGILE_STALKER_SPEED = 3.8;
@@ -235,9 +237,14 @@ export const SHIELD_PULSE_PARTICLE_COUNT = 10;
 
 
 // Shield Zone Constants
-export const SHIELD_ZONE_DEFAULT_DURATION = 300; // 5 seconds at 60 TPS
+export const SHIELD_ZONE_DEFAULT_DURATION = 300;  // 5 seconds at 60 TPS
 export const SHIELD_ZONE_DEFAULT_RADIUS = 100;
 export const SHIELD_ZONE_ABILITY_BASE_COOLDOWN = 1200; // 20 seconds
+// Hard floor: cooldown can never drop below this so the shield can NEVER be
+// active more than ~50 % of the time (floor = 900 ticks = 15 s).
+// Max duration with 5 upgrade levels = 300 + 5×30 = 450 ticks (7.5 s).
+// Min vulnerable window = 900 − 450 = 450 ticks (7.5 s). Always ≥ duration.
+export const SHIELD_ZONE_MIN_COOLDOWN = 900;  // 15 seconds
 export const SHIELD_ZONE_OPACITY_PULSE_MIN = 0.1;
 export const SHIELD_ZONE_OPACITY_PULSE_MAX = 0.4;
 export const SHIELD_ZONE_OPACITY_PULSE_SPEED = 0.01;
@@ -253,36 +260,36 @@ export const CHAIN_LIGHTNING_VISUAL_DURATION = 10; // Ticks
 export const INITIAL_UPGRADES: Upgrade[] = [
   {
     id: UpgradeType.PLAYER_MAX_HEALTH,
-    name: 'Enhanced Integrity Field',
-    description: 'Increases Maximum Integrity. Next Level: +20 Health.',
+    name: 'Armor Plating',
+    description: '+20 max HP per level. HP is restored immediately on purchase.',
     baseCost: 300, cost: 300, currentLevel: 0, maxLevel: 5, costScalingFactor: 1.8, icon: HeartIcon,
     apply: (player: Player, currentCost: number) => ({ player: { ...player, maxHealth: player.maxHealth + 20, health: player.health + 20, gold: player.gold - currentCost } }),
   },
   {
     id: UpgradeType.PLAYER_SPEED,
-    name: 'Advanced Propulsion',
-    description: 'Improves Propulsion. Next Level: +0.3 Speed.',
+    name: 'Speed Boost',
+    description: '+0.3 movement speed per level. Especially useful when in OVERCLOCK mode.',
     baseCost: 600, cost: 600, currentLevel: 0, maxLevel: 5, costScalingFactor: 1.9, icon: BoltIcon,
     apply: (player: Player, currentCost: number) => ({ player: { ...player, speed: player.speed + 0.3, gold: player.gold - currentCost } }),
   },
   {
     id: UpgradeType.GOLD_MAGNET,
     name: 'Gold Magnet',
-    description: 'Expands Gold Collection Radius. Next Level: +15px Range.',
+    description: 'Collect dropped gold from 15px further away per level. More gold, more upgrades.',
     baseCost: 250, cost: 250, currentLevel: 0, maxLevel: 5, costScalingFactor: 1.7, icon: FunnelIcon,
     apply: (player: Player, currentCost: number) => ({ player: { ...player, coinMagnetRange: player.coinMagnetRange + 15, gold: player.gold - currentCost } }),
   },
   {
     id: UpgradeType.SQUAD_SPACING,
-    name: 'Tightened Formation',
-    description: 'Reduces Unit Spacing. Next Level: -0.19 Multiplier.',
+    name: 'Tight Formation',
+    description: 'Allies follow closer behind you. Great for chain lightning builds.',
     baseCost: 400, cost: 400, currentLevel: 0, maxLevel: 5, costScalingFactor: 1.8, icon: ArrowsPointingInIcon,
     apply: (player: Player, currentCost: number) => ({ player: { ...player, squadSpacingMultiplier: Math.max(0.05, player.squadSpacingMultiplier - 0.19), gold: player.gold - currentCost } }),
   },
   {
     id: UpgradeType.INITIAL_ALLY_BOOST,
-    name: 'Initial Deployment Support',
-    description: 'Deploys with support. Next Level: +1 Rifleman.',
+    name: 'Extra Recruit',
+    description: 'Start each run with +1 Rifleman ally already in your squad.',
     baseCost: 1200, cost: 1200, currentLevel: 0, maxLevel: 3, costScalingFactor: 2.2,
     icon: UserGroupIcon,
     apply: (player: Player, currentCost: number) => ({ player: {
@@ -294,89 +301,89 @@ export const INITIAL_UPGRADES: Upgrade[] = [
   // Global Upgrades
   {
     id: UpgradeType.GLOBAL_DAMAGE_BOOST,
-    name: 'Universal Damage Matrix',
-    description: 'Increases global damage. Next Level: +5% Damage.',
+    name: 'Damage Boost',
+    description: '+5% damage for your entire squad per level. One of the best investments.',
     baseCost: 1000, cost: 1000, currentLevel: 0, maxLevel: 5, costScalingFactor: 2.0, icon: StarIcon,
     apply: (player: Player, currentCost: number) => ({ player: { ...player, globalDamageModifier: player.globalDamageModifier + 0.05, gold: player.gold - currentCost } }),
   },
   {
     id: UpgradeType.GLOBAL_FIRE_RATE_BOOST,
-    name: 'System-Wide Chrono-Sync',
-    description: 'Increases global fire rate. Next Level: +5% Fire Rate.',
+    name: 'Fire Rate',
+    description: 'Your whole squad shoots 5% faster per level. One of the strongest upgrades.',
     baseCost: 1000, cost: 1000, currentLevel: 0, maxLevel: 5, costScalingFactor: 2.0, icon: BoltIcon,
     apply: (player: Player, currentCost: number) => ({ player: { ...player, globalFireRateModifier: player.globalFireRateModifier * 0.95, gold: player.gold - currentCost } }),
   },
   // Airstrike Upgrades
   {
     id: UpgradeType.AIRSTRIKE_MISSILE_COUNT,
-    name: 'Augmented Barrage',
-    description: 'More missiles per Barrage. Next Level: +1 Missile.',
+    name: 'More Missiles',
+    description: '+1 missile per air strike barrage, per level. More missiles = more chaos.',
     baseCost: 1500, cost: 1500, currentLevel: 0, maxLevel: 5, costScalingFactor: 2.1, icon: Bars4Icon,
     apply: (player: Player, currentCost: number) => ({ player: { ...player, airstrikeMissileCountBonus: player.airstrikeMissileCountBonus + 1, gold: player.gold - currentCost } }),
   },
   {
     id: UpgradeType.AIRSTRIKE_DAMAGE,
-    name: 'Enhanced Explosive Payload',
-    description: 'Increased missile damage. Next Level: +10% Missile Damage.',
+    name: 'Missile Damage',
+    description: '+10% explosion damage per missile, per level.',
     baseCost: 1800, cost: 1800, currentLevel: 0, maxLevel: 5, costScalingFactor: 1.9, icon: FireIcon,
     apply: (player: Player, currentCost: number) => ({ player: { ...player, airstrikeDamageModifier: player.airstrikeDamageModifier + 0.10, gold: player.gold - currentCost } }),
   },
   {
     id: UpgradeType.AIRSTRIKE_AOE,
-    name: 'Fragmentation Radius Expansion',
-    description: 'Expands missile AoE. Next Level: +8% AoE Radius.',
+    name: 'Blast Radius',
+    description: '+8% explosion radius per level. Bigger blast, more collateral damage.',
     baseCost: 1600, cost: 1600, currentLevel: 0, maxLevel: 5, costScalingFactor: 2.0, icon: AoeIcon,
     apply: (player: Player, currentCost: number) => ({ player: { ...player, airstrikeAoeModifier: player.airstrikeAoeModifier + 0.08, gold: player.gold - currentCost } }),
   },
   // Player Weapon Upgrades
   {
     id: UpgradeType.PLAYER_PROJECTILE_SPEED,
-    name: 'High-Velocity Projectiles',
-    description: 'Increases projectile speed. Next Level: +10% Speed.',
+    name: 'Bullet Speed',
+    description: '+10% bullet travel speed per level. Harder for enemies to dodge at range.',
     baseCost: 700, cost: 700, currentLevel: 0, maxLevel: 5, costScalingFactor: 1.8, icon: ChevronDoubleRightIcon,
     apply: (player: Player, currentCost: number) => ({ player: { ...player, projectileSpeedModifier: player.projectileSpeedModifier + 0.10, gold: player.gold - currentCost } }),
   },
   {
     id: UpgradeType.PLAYER_PIERCING_ROUNDS,
-    name: 'Armor-Piercing Rounds',
-    description: 'Projectiles pierce enemies. Next Level: Pierces +1 enemy.',
+    name: 'Piercing Rounds',
+    description: 'Your bullets pass through +1 extra enemy per level. Devastating in tight groups.',
     baseCost: 2500, cost: 2500, currentLevel: 0, maxLevel: 3, costScalingFactor: 2.5, icon: PiercingIcon,
     apply: (player: Player, currentCost: number) => ({ player: { ...player, piercingRoundsLevel: player.piercingRoundsLevel + 1, gold: player.gold - currentCost } }),
   },
   // Shield Zone Upgrades
   {
     id: UpgradeType.UNLOCK_SHIELD_ABILITY,
-    name: 'Deployable Shield Emitter',
-    description: 'Unlocks the ability to deploy a temporary protective shield zone.',
+    name: 'Shield Ability',
+    description: 'Unlock: deploy a protective barrier that blocks enemy bullets. One-time purchase.',
     baseCost: 2000, cost: 2000, currentLevel: 0, maxLevel: 1, costScalingFactor: 1, icon: ShieldCheckIcon,
     apply: (player: Player, currentCost: number) => ({ player: { ...player, shieldAbilityUnlocked: true, gold: player.gold - currentCost } }),
   },
   {
     id: UpgradeType.SHIELD_DURATION,
-    name: 'Extended Shield Duration',
-    description: 'Increases shield duration. Next Level: +0.5s Duration.',
+    name: 'Shield Duration',
+    description: '+0.5 seconds of shield protection per level.',
     baseCost: 900, cost: 900, currentLevel: 0, maxLevel: 5, costScalingFactor: 1.7, icon: ClockIcon,
     apply: (player: Player, currentCost: number) => ({ player: { ...player, shieldZoneBaseDuration: player.shieldZoneBaseDuration + 30, gold: player.gold - currentCost }}),
   },
   {
     id: UpgradeType.SHIELD_RADIUS,
-    name: 'Expanded Shield Radius',
-    description: 'Increases shield radius. Next Level: +10% Radius.',
+    name: 'Shield Size',
+    description: '+10% shield radius per level. Covers more of your squad.',
     baseCost: 1200, cost: 1200, currentLevel: 0, maxLevel: 5, costScalingFactor: 1.8, icon: CircleStackIcon,
     apply: (player: Player, currentCost: number) => ({ player: { ...player, shieldZoneBaseRadius: player.shieldZoneBaseRadius * 1.1, gold: player.gold - currentCost }}),
   },
   {
     id: UpgradeType.SHIELD_COOLDOWN_REDUCTION,
-    name: 'Rapid Shield Recharge',
-    description: 'Reduces shield cooldown. Next Level: -10% Cooldown.',
+    name: 'Faster Recharge',
+    description: 'Shield cooldown -10% per level. Minimum cooldown: 15 s — the shield can never cover more than half your time.',
     baseCost: 1500, cost: 1500, currentLevel: 0, maxLevel: 5, costScalingFactor: 1.9, icon: CogIcon,
-    apply: (player: Player, currentCost: number) => ({ player: { ...player, shieldAbilityCooldown: player.shieldAbilityCooldown * 0.9, gold: player.gold - currentCost }}),
+    apply: (player: Player, currentCost: number) => ({ player: { ...player, shieldAbilityCooldown: Math.max(SHIELD_ZONE_MIN_COOLDOWN, player.shieldAbilityCooldown * 0.9), gold: player.gold - currentCost }}),
   },
   // Chain Lightning Upgrade
   {
     id: UpgradeType.CHAIN_LIGHTNING_LEVEL,
-    name: 'Electro-Chain Rounds',
-    description: 'Projectiles may chain. Level: +Chance, +Bounces, +Damage.',
+    name: 'Chain Lightning',
+    description: 'Bullets arc to nearby enemies on hit. More levels = more arcs, more targets, more damage.',
     baseCost: 2800, cost: 2800, currentLevel: 0, maxLevel: 5, costScalingFactor: 2.2, icon: ShareIcon,
     apply: (player: Player, currentCost: number) => {
         const newLevel = player.currentChainLevel + 1;
@@ -394,29 +401,29 @@ export const INITIAL_UPGRADES: Upgrade[] = [
   // Ally Unlocks (Adjusted Costs)
   {
     id: UpgradeType.UNLOCK_SNIPER_ALLY,
-    name: 'Acquire Focus Lance Unit',
-    description: 'Unlocks Sniper. Long-range, high-precision vector.',
+    name: 'Sniper Ally',
+    description: 'Recruit a Sniper. Long-range precision — picks off enemies before they close in.',
     baseCost: 4500, cost: 4500, currentLevel: 0, maxLevel: 1, costScalingFactor: 1, icon: UserPlusIcon,
     apply: (player: Player, currentCost: number) => ({ player: { ...player, gold: player.gold - currentCost } }),
   },
   {
     id: UpgradeType.UNLOCK_RPG_ALLY,
-    name: 'Acquire Impact Driver Unit',
-    description: 'Unlocks RPG. High-mass kinetic impact vector.',
+    name: 'RPG Ally',
+    description: 'Recruit an RPG Soldier. Rocket launcher with splash damage — great vs groups.',
     baseCost: 6000, cost: 6000, currentLevel: 0, maxLevel: 1, costScalingFactor: 1, icon: UserPlusIcon,
     apply: (player: Player, currentCost: number) => ({ player: { ...player, gold: player.gold - currentCost } }),
   },
   {
     id: UpgradeType.UNLOCK_FLAMER_ALLY,
-    name: 'Acquire Arc Field Unit',
-    description: 'Unlocks Flamer. Short-range energy arc dispersal.',
+    name: 'Flamer Ally',
+    description: 'Recruit a Flamer. Close-range area denial — melts anything that rushes you.',
     baseCost: 7000, cost: 7000, currentLevel: 0, maxLevel: 1, costScalingFactor: 1, icon: UserPlusIcon,
     apply: (player: Player, currentCost: number) => ({ player: { ...player, gold: player.gold - currentCost } }),
   },
   {
     id: UpgradeType.UNLOCK_MINIGUNNER_ALLY,
-    name: 'Acquire Pulse Array Unit',
-    description: 'Unlocks Minigunner. Rapid, sustained vector projection.',
+    name: 'Minigunner Ally',
+    description: 'Recruit a Minigunner. Rapid sustained fire — highest raw DPS in your squad.',
     baseCost: 8500, cost: 8500, currentLevel: 0, maxLevel: 1, costScalingFactor: 1, icon: UserPlusIcon,
     apply: (player: Player, currentCost: number) => ({ player: { ...player, gold: player.gold - currentCost } }),
   },

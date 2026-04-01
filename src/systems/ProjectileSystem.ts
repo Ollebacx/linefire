@@ -39,8 +39,25 @@ export interface ProjectileSystemResult {
   newChainLightningEffects: ChainLightningEffect[];
   cameraShake: CameraShakeState | null;
   killCount: number;
+  hitCount: number;
   tankKillCount: number;
   comboIncrement: number;
+  bossKillCount: number;
+  playerHitByProjectile: boolean;
+}
+
+// ── Enemy type → neon death colors ──────────────────────────────────────────────────
+function enemyDeathColors(type: EnemyType): [string, string] {
+  switch (type) {
+    case EnemyType.MELEE_GRUNT:    return ['#FF4444', '#FF7722'];
+    case EnemyType.RANGED_SHOOTER: return ['#FF8C44', '#FF6600'];
+    case EnemyType.ROCKET_TANK:    return ['#FF22AA', '#FF0088'];
+    case EnemyType.AGILE_STALKER:  return ['#E8FF00', '#AACC00'];
+    case EnemyType.ELECTRIC_DRONE: return ['#00CCFF', '#0088BB'];
+    case EnemyType.ENEMY_SNIPER:   return ['#CC44FF', '#8800CC'];
+    case EnemyType.BOSS:           return ['#FF0080', '#FF4444'];
+    default:                        return [EFFECT_PARTICLE_COLOR_DEATH_PRIMARY, EFFECT_PARTICLE_COLOR_DEATH_SECONDARY];
+  }
 }
 
 export function processProjectiles(
@@ -52,6 +69,16 @@ export function processProjectiles(
   viewport: { width: number; height: number },
   isPlayerInteractive: boolean,
 ): ProjectileSystemResult {
+  // Fast path: nothing to process — avoids copying all enemy/ally objects every tick.
+  if (projectiles.length === 0) {
+    return {
+      remainingProjectiles: [], enemies, player,
+      newGoldPiles: [], newDamageTexts: [], newEffectParticles: [],
+      newChainLightningEffects: [], cameraShake: null,
+      killCount: 0, hitCount: 0, tankKillCount: 0,
+      comboIncrement: 0, bossKillCount: 0, playerHitByProjectile: false,
+    };
+  }
   let currentEnemies = enemies.map(e => ({ ...e }));
   let currentPlayer = { ...player, allies: player.allies.map(a => ({ ...a })) };
 
@@ -63,8 +90,9 @@ export function processProjectiles(
   const aoeExplosions: { proj: Projectile; center: Position }[] = [];
   let cameraShake: CameraShakeState | null = null;
   let killCount = 0;
-  let tankKillCount = 0;
+  let hitCount = 0;  let playerHitByProjectile = false;  let tankKillCount = 0;
   let comboIncrement = 0;
+  let bossKillCount = 0;
 
   const isShielded = (target: { x: number; y: number; width: number; height: number }) =>
     currentPlayer.shieldAbilityUnlocked &&
@@ -74,6 +102,7 @@ export function processProjectiles(
     if (!isPlayerInteractive) return;
     killCount++;
     if (enemy.enemyType === EnemyType.ROCKET_TANK) tankKillCount++;
+    if (enemy.enemyType === EnemyType.BOSS) bossKillCount++;
     comboIncrement++;
     const base = Math.ceil(enemy.points / GOLD_VALUE) * 2;
     const rand = 2 + Math.floor(Math.random() * 4);
@@ -95,12 +124,14 @@ export function processProjectiles(
     for (let i = 0; i < EFFECT_PARTICLE_COUNT_DEATH; i++) {
       const angle = Math.random() * Math.PI * 2;
       const speed = EFFECT_PARTICLE_SPEED_MIN + Math.random() * (EFFECT_PARTICLE_SPEED_MAX - EFFECT_PARTICLE_SPEED_MIN) * 1.5;
+      const [colA, colB] = enemyDeathColors(enemy.enemyType);
+      const isBoss = enemy.enemyType === EnemyType.BOSS;
       newEffectParticles.push({
         id: uuidv4(), x: ec.x, y: ec.y,
-        size: EFFECT_PARTICLE_BASE_SIZE + Math.random() * 3,
-        color: Math.random() < 0.7 ? EFFECT_PARTICLE_COLOR_DEATH_PRIMARY : EFFECT_PARTICLE_COLOR_DEATH_SECONDARY,
-        velocity: { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed },
-        timer: EFFECT_PARTICLE_DURATION_TICKS * 1.2, initialTimer: EFFECT_PARTICLE_DURATION_TICKS * 1.2, type: 'death',
+        size: EFFECT_PARTICLE_BASE_SIZE + Math.random() * (isBoss ? 8 : 3),
+        color: Math.random() < 0.7 ? colA : colB,
+        velocity: { x: Math.cos(angle) * speed * (isBoss ? 2.5 : 1), y: Math.sin(angle) * speed * (isBoss ? 2.5 : 1) },
+        timer: EFFECT_PARTICLE_DURATION_TICKS * (isBoss ? 2.5 : 1.2), initialTimer: EFFECT_PARTICLE_DURATION_TICKS * (isBoss ? 2.5 : 1.2), type: 'death',
       });
     }
   };
@@ -137,6 +168,7 @@ export function processProjectiles(
           const ec = getCenter(enemy);
           const dmg = p.damage;
           enemy.health -= dmg;
+          enemy.hitTimer = 8; // white flash for 8 ticks
 
           newDamageTexts.push({
             id: uuidv4(), text: `-${dmg.toFixed(0)}`, x: ec.x, y: ec.y - enemy.height / 2,
@@ -196,6 +228,7 @@ export function processProjectiles(
           }
 
           if (enemy.health <= 0) { handleEnemyDeath(enemy); return false; }
+          hitCount++;
           return true;
         });
 
@@ -204,6 +237,7 @@ export function processProjectiles(
         if (!isShielded(currentPlayer) && currentPlayer.health > 0 && checkCollision(p, currentPlayer)) {
           currentPlayer.health -= p.damage;
           if (currentPlayer.health > 0) currentPlayer.playerHitTimer = PLAYER_HIT_FLASH_DURATION_TICKS;
+          playerHitByProjectile = true;
           removed = true;
           if (p.causesShake) cameraShake = { intensity: RPG_IMPACT_CAMERA_SHAKE_INTENSITY, duration: RPG_IMPACT_CAMERA_SHAKE_DURATION, timer: RPG_IMPACT_CAMERA_SHAKE_DURATION };
           if (p.aoeRadius) aoeExplosions.push({ proj: p, center: getCenter(currentPlayer) });
@@ -248,6 +282,7 @@ export function processProjectiles(
   return {
     remainingProjectiles, enemies: currentEnemies, player: currentPlayer,
     newGoldPiles, newDamageTexts, newEffectParticles, newChainLightningEffects,
-    cameraShake, killCount, tankKillCount, comboIncrement,
+    cameraShake, killCount, hitCount, tankKillCount, comboIncrement, bossKillCount,
+    playerHitByProjectile,
   };
 }

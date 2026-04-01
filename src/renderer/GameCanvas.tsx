@@ -67,15 +67,26 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ width, height, onReady }
   useEffect(() => {
     if (!ready) return;
 
+    // During gameplay the game loop owns rendering (once per rAF via renderCallback).
+    // We only render here for non-loop state changes: shop, pause, menus, etc.
     const unsubscribe = useGameStore.subscribe(() => {
-      const state = useGameStore.getState();
-      rendererRef.current?.render(state);
+      if (!gameLoop.isRunning) {
+        rendererRef.current?.render(useGameStore.getState());
+      }
+    });
+
+    // Wire the game loop so it renders exactly once per rAF frame (not once per tick).
+    gameLoop.setRenderCallback(() => {
+      rendererRef.current?.render(useGameStore.getState());
     });
 
     // Render current state immediately
     rendererRef.current?.render(useGameStore.getState());
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      gameLoop.setRenderCallback(null);
+    };
   }, [ready]);
 
   // ── GameLoop start / stop based on gameStatus ─────────────────────────────────
