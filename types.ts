@@ -95,6 +95,7 @@ export interface Player extends Character {
   equippedWeapon: WeaponType;
   weaponTimer: number;
   weaponBaseSnapshot?: {
+    championType: AllyType | undefined;
     damage: number;
     shootCooldown: number;
     clipSize: number;
@@ -102,8 +103,6 @@ export interface Player extends Character {
     piercingRoundsLevel: number;
     projectileSpeedModifier: number;
   };
-  weaponProjectileCount?: number;
-  weaponSpreadAngle?: number;
 }
 
 export enum EnemyType {
@@ -195,12 +194,12 @@ export interface CollectibleAlly extends GameObject {
 }
 
 export enum WeaponType {
-  PISTOL        = 'PISTOL',
-  SMG           = 'SMG',
-  ASSAULT_RIFLE = 'ASSAULT_RIFLE',
-  SHOTGUN       = 'SHOTGUN',
-  LMG           = 'LMG',
-  SNIPER        = 'SNIPER',
+  PISTOL   = 'PISTOL',   // GUN_GUY, never drops
+  SHOTGUN  = 'SHOTGUN',
+  RIFLEMAN = 'RIFLEMAN',
+  SNIPER   = 'SNIPER',
+  RPG      = 'RPG',
+  FLAMER   = 'FLAMER',
 }
 
 export interface WeaponDrop extends GameObject {
@@ -392,7 +391,7 @@ export interface GameState {
   shieldZones: ShieldZone[];
   chainLightningEffects: ChainLightningEffect[];
   round: number;
-  gameStatus: 'IDLE' | 'CHAMPION_SELECT' | 'PLAYING' | 'SHOP' | 'GAME_OVER_PENDING' | 'GAME_OVER' | 'INIT_NEW_RUN' | 'PAUSED' | 'TUTORIAL_ACTIVE';
+  gameStatus: 'IDLE' | 'CHAMPION_SELECT' | 'PLAYING' | 'SHOP' | 'GAME_OVER_PENDING' | 'GAME_OVER' | 'INIT_NEW_RUN' | 'PAUSED' | 'TUTORIAL_ACTIVE' | 'ROUND_COMPLETE';
   currentWaveEnemies: number; // Tracks enemies defeated in the current wave/round
   totalEnemiesThisRound: number; // Total enemies to defeat for the current wave/round
   gameArea: Size;

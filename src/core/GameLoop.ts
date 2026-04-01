@@ -15,7 +15,7 @@ import type { ComboState } from '../systems/ComboSystem';
 import { applyPlayerMovement, updateCamera, updateAllyMovement, chainAllyLeaders } from '../systems/MovementSystem';
 import { processProjectiles } from '../systems/ProjectileSystem';
 import { playerShoot, allyShoot, tickReload, enemyMeleeAttack, findClosestEnemy, isInsideShieldZone } from '../systems/CombatSystem';
-import { createEnemy, createCollectibleAlly, determineNextEnemyType, createWeaponDrop, WEAPON_DROPPABLE_TYPES } from '../systems/SpawnSystem';
+import { createEnemy, createCollectibleAlly, determineNextEnemyType, createWeaponDrop } from '../systems/SpawnSystem';
 import { INITIAL_SPAWN_INTERVAL_TICKS } from '../systems/WaveSystem';
 import { tickCombo, registerKill, completeAirstrike } from '../systems/ComboSystem';
 import {
@@ -47,7 +47,7 @@ import {
   AIRSTRIKE_MISSILE_DAMAGE, AIRSTRIKE_MISSILE_AOE_RADIUS, AIRSTRIKE_MISSILE_SPEED,
   AIRSTRIKE_PROJECTILE_SIZE, AIRSTRIKE_MISSILE_INTERVAL_TICKS, AIRSTRIKE_COMBO_THRESHOLD,
   ENEMY_PROJECTILE_SPEED, RPG_PROJECTILE_SIZE, PROJECTILE_SIZE, PLAYER_HIT_FLASH_DURATION_TICKS,
-  WEAPON_CONFIGS, WEAPON_DROP_KILL_CHANCE, WEAPON_HELD_TTL, WEAPON_DROP_SPAWN_TIMER,
+  WEAPON_CONFIGS, WEAPON_TO_ALLY, WEAPON_DROP_KILL_CHANCE, WEAPON_HELD_TTL, WEAPON_DROP_SPAWN_TIMER,
   GUN_GUY_CLIP_SIZE, GUN_GUY_RELOAD_TIME,
 } from '../constants/player';
 import {
@@ -564,13 +564,25 @@ export class GameLoop {
       newPlayer = { ...newPlayer, currentRunTanksDestroyed: (newPlayer.currentRunTanksDestroyed ?? 0) + projResult.tankKillCount };
     }
 
-    // Weapon drop on kill (7% per kill, capped at 1 drop per tick)
+    // Weapon drop on kill (3% per kill, pool = unlocked ally types only)
     if (!isTutorial && projResult.killCount > 0 && projResult.newGoldPiles.length > 0) {
-      const dropRollMax = WEAPON_DROP_KILL_CHANCE + (store.availableUpgrades.find(u => u.id as string === 'WEAPON_TIER')?.currentLevel ?? 0) * 0.03;
-      if (Math.random() < dropRollMax) {
-        const gp  = projResult.newGoldPiles[Math.floor(Math.random() * projResult.newGoldPiles.length)];
-        const wt  = WEAPON_DROPPABLE_TYPES[Math.floor(Math.random() * WEAPON_DROPPABLE_TYPES.length)];
-        newWeaponDrops.push(createWeaponDrop(wt, gp.x, gp.y, store.worldArea));
+      if (Math.random() < WEAPON_DROP_KILL_CHANCE) {
+        // Build droppable pool from currently unlocked ally types (skip GUN_GUY)
+        const ALLY_TO_WEAPON: Partial<Record<AllyType, WeaponType>> = {
+          [AllyType.SHOTGUN]:     WeaponType.SHOTGUN,
+          [AllyType.RIFLEMAN]:    WeaponType.RIFLEMAN,
+          [AllyType.SNIPER]:      WeaponType.SNIPER,
+          [AllyType.RPG_SOLDIER]: WeaponType.RPG,
+          [AllyType.FLAMER]:      WeaponType.FLAMER,
+        };
+        const pool = store.unlockedAllyTypes
+          .map(t => ALLY_TO_WEAPON[t])
+          .filter((w): w is WeaponType => w !== undefined);
+        if (pool.length > 0) {
+          const gp = projResult.newGoldPiles[Math.floor(Math.random() * projResult.newGoldPiles.length)];
+          const wt = pool[Math.floor(Math.random() * pool.length)];
+          newWeaponDrops.push(createWeaponDrop(wt, gp.x, gp.y, store.worldArea));
+        }
       }
     }
 
@@ -665,33 +677,42 @@ export class GameLoop {
     });
 
     // ── 12.5. Weapon drop pickup + held-weapon timer ───────────────────────
+    const ALLY_TO_WEAPON_MAP: Partial<Record<AllyType, WeaponType>> = {
+      [AllyType.SHOTGUN]:     WeaponType.SHOTGUN,
+      [AllyType.RIFLEMAN]:    WeaponType.RIFLEMAN,
+      [AllyType.SNIPER]:      WeaponType.SNIPER,
+      [AllyType.RPG_SOLDIER]: WeaponType.RPG,
+      [AllyType.FLAMER]:      WeaponType.FLAMER,
+    };
+    const WEAPON_TO_ALLY_MAP: Record<WeaponType, AllyType | undefined> = WEAPON_TO_ALLY;
+
     newWeaponDrops = newWeaponDrops.filter(drop => {
       if (!checkCollision(newPlayer, drop)) return true;
       const cfg = WEAPON_CONFIGS[drop.weaponType];
-      // Snapshot pistol stats only if not already holding a weapon
+      // Snapshot current state only if not already holding a weapon
       const snapshot = newPlayer.weaponBaseSnapshot ?? {
+        championType:           newPlayer.championType,
         damage:                 newPlayer.damage,
         shootCooldown:          newPlayer.shootCooldown,
         clipSize:               newPlayer.clipSize ?? GUN_GUY_CLIP_SIZE,
-        reloadDuration:         newPlayer.reloadDuration ?? GUN_GUY_RELOAD_TIME,
+        reloadDuration:         newPlayer.reloadDuration ?? (GUN_GUY_RELOAD_TIME / 60),
         piercingRoundsLevel:    newPlayer.piercingRoundsLevel,
         projectileSpeedModifier: newPlayer.projectileSpeedModifier,
       };
+      const weaponAllyType = WEAPON_TO_ALLY_MAP[drop.weaponType]; // e.g. AllyType.SHOTGUN
       newPlayer = {
         ...newPlayer,
-        equippedWeapon:         drop.weaponType,
-        weaponTimer:            WEAPON_HELD_TTL,
-        weaponBaseSnapshot:     snapshot,
-        damage:                 cfg.damage,
-        shootCooldown:          cfg.shootCooldown,
-        clipSize:               cfg.clipSize,
-        ammoLeftInClip:         cfg.clipSize,
-        reloadDuration:         cfg.reloadDuration,
-        currentReloadTimer:     0,
-        piercingRoundsLevel:    snapshot.piercingRoundsLevel    + (cfg.piercingBonus       ?? 0),
-        projectileSpeedModifier: snapshot.projectileSpeedModifier + (cfg.projectileSpeedBonus ?? 0),
-        weaponProjectileCount:  cfg.projectileCount,
-        weaponSpreadAngle:      cfg.projectileSpreadAngle,
+        equippedWeapon:          drop.weaponType,
+        weaponTimer:             WEAPON_HELD_TTL,
+        weaponBaseSnapshot:      snapshot,
+        // Set championType so player fires & looks exactly like the corresponding ally
+        championType:            weaponAllyType,
+        damage:                  cfg.damage,
+        shootCooldown:           cfg.shootCooldown,
+        clipSize:                cfg.clipSize,
+        ammoLeftInClip:          cfg.clipSize,
+        reloadDuration:          cfg.reloadDuration,
+        currentReloadTimer:      0,
       };
       newDamageTexts.push({
         id: uuidv4(), text: `⚡ ${cfg.label}`,
@@ -711,19 +732,19 @@ export class GameLoop {
         const snap = newPlayer.weaponBaseSnapshot;
         newPlayer = {
           ...newPlayer,
-          equippedWeapon:         WeaponType.PISTOL,
-          weaponTimer:            0,
-          weaponBaseSnapshot:     undefined,
-          damage:                 snap.damage,
-          shootCooldown:          snap.shootCooldown,
-          clipSize:               snap.clipSize,
-          ammoLeftInClip:         snap.clipSize,
-          reloadDuration:         snap.reloadDuration,
-          currentReloadTimer:     0,
-          piercingRoundsLevel:    snap.piercingRoundsLevel,
+          equippedWeapon:          WeaponType.PISTOL,
+          weaponTimer:             0,
+          weaponBaseSnapshot:      undefined,
+          // Restore original championType (may be undefined = GUN_GUY, or a chosen champion)
+          championType:            snap.championType,
+          damage:                  snap.damage,
+          shootCooldown:           snap.shootCooldown,
+          clipSize:                snap.clipSize,
+          ammoLeftInClip:          snap.clipSize,
+          reloadDuration:          snap.reloadDuration,
+          currentReloadTimer:      0,
+          piercingRoundsLevel:     snap.piercingRoundsLevel,
           projectileSpeedModifier: snap.projectileSpeedModifier,
-          weaponProjectileCount:  undefined,
-          weaponSpreadAngle:      undefined,
         };
         newDamageTexts.push({
           id: uuidv4(), text: '🔫 PISTOL',
@@ -766,10 +787,22 @@ export class GameLoop {
     // ── 14.5. Timed weapon drop spawn ─────────────────────────────────────
     let newWeaponDropSpawnTimer = (store.weaponDropSpawnTimer ?? WEAPON_DROP_SPAWN_TIMER) - DELTA_SECONDS;
     if (newWeaponDropSpawnTimer <= 0 && !isTutorial) {
-      const wt = WEAPON_DROPPABLE_TYPES[Math.floor(Math.random() * WEAPON_DROPPABLE_TYPES.length)];
-      const spawnX = store.camera.x + 80 + Math.random() * Math.max(1, store.gameArea.width  - 160);
-      const spawnY = store.camera.y + 80 + Math.random() * Math.max(1, store.gameArea.height - 160);
-      newWeaponDrops.push(createWeaponDrop(wt, spawnX, spawnY, store.worldArea));
+      const ALLY_TO_WPN: Partial<Record<AllyType, WeaponType>> = {
+        [AllyType.SHOTGUN]:     WeaponType.SHOTGUN,
+        [AllyType.RIFLEMAN]:    WeaponType.RIFLEMAN,
+        [AllyType.SNIPER]:      WeaponType.SNIPER,
+        [AllyType.RPG_SOLDIER]: WeaponType.RPG,
+        [AllyType.FLAMER]:      WeaponType.FLAMER,
+      };
+      const pool = store.unlockedAllyTypes
+        .map(t => ALLY_TO_WPN[t])
+        .filter((w): w is WeaponType => w !== undefined);
+      if (pool.length > 0) {
+        const wt = pool[Math.floor(Math.random() * pool.length)];
+        const spawnX = store.camera.x + 80 + Math.random() * Math.max(1, store.gameArea.width  - 160);
+        const spawnY = store.camera.y + 80 + Math.random() * Math.max(1, store.gameArea.height - 160);
+        newWeaponDrops.push(createWeaponDrop(wt, spawnX, spawnY, store.worldArea));
+      }
       newWeaponDropSpawnTimer = WEAPON_DROP_SPAWN_TIMER;
     }
 

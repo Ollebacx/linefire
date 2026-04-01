@@ -7,7 +7,7 @@ import type { Enemy, CollectibleAlly, Player, Size, WeaponDrop } from '../types'
 import { EnemyType, AllyType, WeaponType } from '../types';
 import { UI_STROKE_PRIMARY } from '../constants/ui';
 import {
-  WEAPON_DROP_SIZE, WEAPON_DROP_TTL, WEAPON_DROPPABLE_TYPES,
+  WEAPON_DROP_SIZE, WEAPON_DROP_TTL,
 } from '../constants/player';
 import { PLAYER_WORLD_EDGE_MARGIN } from '../constants/world';
 import {
@@ -223,4 +223,4 @@ export function createWeaponDrop(
   };
 }
 
-export { WEAPON_DROPPABLE_TYPES, WeaponType };
+export { WeaponType };

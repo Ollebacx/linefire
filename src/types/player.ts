@@ -2,12 +2,12 @@ import type { Position, GameObject } from './geometry';
 import type { AllyType } from './ally';
 
 export enum WeaponType {
-  PISTOL        = 'PISTOL',
-  SMG           = 'SMG',
-  ASSAULT_RIFLE = 'ASSAULT_RIFLE',
-  SHOTGUN       = 'SHOTGUN',
-  LMG           = 'LMG',
-  SNIPER        = 'SNIPER',
+  PISTOL   = 'PISTOL',
+  SHOTGUN  = 'SHOTGUN',
+  RIFLEMAN = 'RIFLEMAN',
+  SNIPER   = 'SNIPER',
+  RPG      = 'RPG',
+  FLAMER   = 'FLAMER',
 }
 
 export interface Character extends GameObject {
@@ -90,6 +90,7 @@ export interface Player extends Character {
   equippedWeapon: WeaponType;
   weaponTimer: number;
   weaponBaseSnapshot?: {
+    championType: AllyType | undefined;
     damage: number;
     shootCooldown: number;
     clipSize: number;
@@ -97,6 +98,4 @@ export interface Player extends Character {
     piercingRoundsLevel: number;
     projectileSpeedModifier: number;
   };
-  weaponProjectileCount?: number;
-  weaponSpreadAngle?: number;
 }

@@ -1,5 +1,5 @@
 import type { Size } from '../types';
-import { WeaponType } from '../types';
+import { WeaponType, AllyType } from '../types';
 
 // ── Player base stats ─────────────────────────────────────────────────────────
 export const PLAYER_INITIAL_HEALTH              = 30;
@@ -64,33 +64,32 @@ export const AIRSTRIKE_IMPACT_SHAKE_DURATION  = 10;
 // ── Weapon drop system ────────────────────────────────────────────────────────
 export interface WeaponConfig {
   label: string;
-  shootCooldown: number;
+  allyType: AllyType | undefined; // undefined = GUN_GUY path
+  shootCooldown: number;          // seconds (ticks / 60)
   damage: number;
   clipSize: number;
-  reloadDuration: number;
-  projectileCount?: number;
-  projectileSpreadAngle?: number;
-  piercingBonus?: number;
-  projectileSpeedBonus?: number;
+  reloadDuration: number;         // seconds
   color: string;
   rendererColor: number;
 }
 
 export const WEAPON_CONFIGS: Record<WeaponType, WeaponConfig> = {
-  [WeaponType.PISTOL]:        { label: 'PISTOL',  shootCooldown: 0.45, damage: 18,  clipSize: 12, reloadDuration: 1.2, color: '#00FFCC', rendererColor: 0x00FFCC },
-  [WeaponType.SMG]:           { label: 'SMG',     shootCooldown: 0.09, damage: 9,   clipSize: 32, reloadDuration: 1.5, color: '#FF9500', rendererColor: 0xFF9500 },
-  [WeaponType.ASSAULT_RIFLE]: { label: 'AR-15',   shootCooldown: 0.20, damage: 25,  clipSize: 22, reloadDuration: 1.8, piercingBonus: 1, color: '#00E5FF', rendererColor: 0x00E5FF },
-  [WeaponType.SHOTGUN]:       { label: 'SHOTGUN', shootCooldown: 0.65, damage: 18,  clipSize: 6,  reloadDuration: 2.0, projectileCount: 5, projectileSpreadAngle: 40, color: '#FF2055', rendererColor: 0xFF2055 },
-  [WeaponType.LMG]:           { label: 'LMG',     shootCooldown: 0.07, damage: 8,   clipSize: 60, reloadDuration: 3.0, color: '#80FF44', rendererColor: 0x80FF44 },
-  [WeaponType.SNIPER]:        { label: 'SNIPER',  shootCooldown: 1.10, damage: 130, clipSize: 4,  reloadDuration: 2.5, piercingBonus: 3, projectileSpeedBonus: 0.8, color: '#CC44FF', rendererColor: 0xCC44FF },
+  [WeaponType.PISTOL]:   { label: 'PISTOL',   allyType: undefined,            shootCooldown: 10 / 60,  damage: 10,  clipSize: 6,  reloadDuration: 2.0, color: '#00FFCC', rendererColor: 0x00FFCC },
+  [WeaponType.SHOTGUN]:  { label: 'SHOTGUN',  allyType: AllyType.SHOTGUN,     shootCooldown: 30 / 60,  damage: 7,   clipSize: 8,  reloadDuration: 2.0, color: '#FF2055', rendererColor: 0xFF2055 },
+  [WeaponType.RIFLEMAN]: { label: 'RIFLEMAN', allyType: AllyType.RIFLEMAN,    shootCooldown: 20 / 60,  damage: 9,   clipSize: 24, reloadDuration: 1.8, color: '#00E5FF', rendererColor: 0x00E5FF },
+  [WeaponType.SNIPER]:   { label: 'SNIPER',   allyType: AllyType.SNIPER,      shootCooldown: 70 / 60,  damage: 35,  clipSize: 5,  reloadDuration: 2.5, color: '#CC44FF', rendererColor: 0xCC44FF },
+  [WeaponType.RPG]:      { label: 'RPG',      allyType: AllyType.RPG_SOLDIER, shootCooldown: 160 / 60, damage: 40,  clipSize: 3,  reloadDuration: 3.0, color: '#FF9500', rendererColor: 0xFF9500 },
+  [WeaponType.FLAMER]:   { label: 'FLAMER',   allyType: AllyType.FLAMER,      shootCooldown: 30 / 60,  damage: 4,   clipSize: 50, reloadDuration: 1.5, color: '#FF6600', rendererColor: 0xFF6600 },
 };
 
+// Weapon → AllyType for combat / visual behavior
+export const WEAPON_TO_ALLY: Record<WeaponType, AllyType | undefined> = Object.fromEntries(
+  Object.entries(WEAPON_CONFIGS).map(([k, v]) => [k, v.allyType])
+) as Record<WeaponType, AllyType | undefined>;
+
 export const WEAPON_DROP_SIZE: Size      = { width: 26, height: 26 };
-export const WEAPON_DROP_TTL             = 15;
-export const WEAPON_HELD_TTL             = 45;
-export const WEAPON_DROP_SPAWN_TIMER     = 25;
-export const WEAPON_DROP_KILL_CHANCE     = 0.07;
-export const WEAPON_DROPPABLE_TYPES: WeaponType[] = [
-  WeaponType.SMG, WeaponType.ASSAULT_RIFLE, WeaponType.SHOTGUN,
-  WeaponType.LMG, WeaponType.SNIPER,
-];
+export const WEAPON_DROP_TTL             = 20;   // seconds on ground
+export const WEAPON_HELD_TTL             = 45;   // seconds held after pickup
+export const WEAPON_DROP_SPAWN_TIMER     = 45;   // seconds between timed drops
+export const WEAPON_DROP_KILL_CHANCE     = 0.03; // 3% per kill
+// Droppable pool is determined at runtime from store.unlockedAllyTypes
