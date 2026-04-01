@@ -92,4 +92,11 @@ export const WEAPON_DROP_TTL             = 20;   // seconds on ground
 export const WEAPON_HELD_TTL             = 45;   // seconds held after pickup
 export const WEAPON_DROP_SPAWN_TIMER     = 45;   // seconds between timed drops
 export const WEAPON_DROP_KILL_CHANCE     = 0.03; // 3% per kill
-// Droppable pool is determined at runtime from store.unlockedAllyTypes
+// Per-level config for WEAPON_TIER upgrade
+// [killChance, timedSpawnInterval (0=disabled), heldTTL]
+export const WEAPON_CRATE_LEVELS: [number, number, number][] = [
+  [0,    0,  0 ], // level 0 — disabled
+  [0.03, 0,  30], // level 1 — kill drops only, 30s held
+  [0.03, 45, 40], // level 2 — + timed spawn every 45s, 40s held
+  [0.06, 25, 60], // level 3 — 6% kill chance, spawn every 25s, 60s held
+];

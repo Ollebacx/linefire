@@ -50,6 +50,13 @@ export const WEAPON_DROP_TTL          = 20;   // seconds on ground
 export const WEAPON_HELD_TTL          = 45;   // seconds held after pickup
 export const WEAPON_DROP_SPAWN_TIMER  = 45;   // seconds between timed drops
 export const WEAPON_DROP_KILL_CHANCE  = 0.03; // 3% per kill
+// Per-level config for WEAPON_TIER upgrade: [killChance, timedSpawnInterval (0=disabled), heldTTL]
+export const WEAPON_CRATE_LEVELS: [number, number, number][] = [
+  [0,    0,  0 ], // level 0 — disabled
+  [0.03, 0,  30], // level 1 — kill drops only, 30s held
+  [0.03, 45, 40], // level 2 — + timed spawn every 45s, 40s held
+  [0.06, 25, 60], // level 3 — 6% kill chance, spawn every 25s, 60s held
+];
 // Droppable pool is determined at runtime from unlockedAllyTypes
 
 
@@ -439,12 +446,12 @@ export const INITIAL_UPGRADES: Upgrade[] = [
     baseCost: 800, cost: 800, currentLevel: 0, maxLevel: 5, costScalingFactor: 1.8, icon: ShieldCheckIcon,
     apply: (player: Player, currentCost: number) => ({ player: { ...player, allyHealthBonus: (player.allyHealthBonus ?? 0) + 2, gold: player.gold - currentCost } }),
   },
-  // Drop Luck: increases weapon drop chance
+  // Weapon Crates: unlocks and escalates weapon drops
   {
     id: UpgradeType.WEAPON_TIER,
-    name: 'Drop Luck',
-    description: '+3% weapon drop chance per level. More chances to find powerful weapons during combat.',
-    baseCost: 1200, cost: 1200, currentLevel: 0, maxLevel: 4, costScalingFactor: 1.6, icon: FireIcon,
+    name: 'Weapon Crates',
+    description: 'Lv1: Enemies drop weapons on kill (3%, 30s). Lv2: + timed crate every 45s (40s). Lv3: 6% drop rate, crate every 25s, weapons last 60s.',
+    baseCost: 1500, cost: 1500, currentLevel: 0, maxLevel: 3, costScalingFactor: 2.0, icon: FireIcon,
     apply: (player: Player, currentCost: number) => ({ player: { ...player, gold: player.gold - currentCost } }),
   },
   // Ally Unlocks (Adjusted Costs)

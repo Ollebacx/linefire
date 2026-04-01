@@ -8,7 +8,7 @@
  */
 import { v4 as uuidv4 } from 'uuid';
 import type { Player, Ally, Position, Size, GameStatus, Enemy, Projectile, WeaponDrop } from '../types';
-import { EnemyType, AllyType, WeaponType } from '../types';
+import { EnemyType, AllyType, WeaponType, UpgradeType } from '../types';
 import type { InputSnapshot } from '../systems/MovementSystem';
 import type { ComboState } from '../systems/ComboSystem';
 
@@ -48,6 +48,7 @@ import {
   AIRSTRIKE_PROJECTILE_SIZE, AIRSTRIKE_MISSILE_INTERVAL_TICKS, AIRSTRIKE_COMBO_THRESHOLD,
   ENEMY_PROJECTILE_SPEED, RPG_PROJECTILE_SIZE, PROJECTILE_SIZE, PLAYER_HIT_FLASH_DURATION_TICKS,
   WEAPON_CONFIGS, WEAPON_TO_ALLY, WEAPON_DROP_KILL_CHANCE, WEAPON_HELD_TTL, WEAPON_DROP_SPAWN_TIMER,
+  WEAPON_CRATE_LEVELS,
   GUN_GUY_CLIP_SIZE, GUN_GUY_RELOAD_TIME,
 } from '../constants/player';
 import {
@@ -564,24 +565,27 @@ export class GameLoop {
       newPlayer = { ...newPlayer, currentRunTanksDestroyed: (newPlayer.currentRunTanksDestroyed ?? 0) + projResult.tankKillCount };
     }
 
-    // Weapon drop on kill (3% per kill, pool = unlocked ally types only)
+    // Weapon drop on kill — requires WEAPON_CRATES upgrade (WEAPON_TIER level >= 1)
     if (!isTutorial && projResult.killCount > 0 && projResult.newGoldPiles.length > 0) {
-      if (Math.random() < WEAPON_DROP_KILL_CHANCE) {
-        // Build droppable pool from currently unlocked ally types (skip GUN_GUY)
-        const ALLY_TO_WEAPON: Partial<Record<AllyType, WeaponType>> = {
-          [AllyType.SHOTGUN]:     WeaponType.SHOTGUN,
-          [AllyType.RIFLEMAN]:    WeaponType.RIFLEMAN,
-          [AllyType.SNIPER]:      WeaponType.SNIPER,
-          [AllyType.RPG_SOLDIER]: WeaponType.RPG,
-          [AllyType.FLAMER]:      WeaponType.FLAMER,
-        };
-        const pool = store.unlockedAllyTypes
-          .map(t => ALLY_TO_WEAPON[t])
-          .filter((w): w is WeaponType => w !== undefined);
-        if (pool.length > 0) {
-          const gp = projResult.newGoldPiles[Math.floor(Math.random() * projResult.newGoldPiles.length)];
-          const wt = pool[Math.floor(Math.random() * pool.length)];
-          newWeaponDrops.push(createWeaponDrop(wt, gp.x, gp.y, store.worldArea));
+      const crateLevel = store.availableUpgrades.find(u => u.id === UpgradeType.WEAPON_TIER)?.currentLevel ?? 0;
+      if (crateLevel >= 1) {
+        const [killChance] = WEAPON_CRATE_LEVELS[crateLevel];
+        if (Math.random() < killChance) {
+          const ALLY_TO_WEAPON: Partial<Record<AllyType, WeaponType>> = {
+            [AllyType.SHOTGUN]:     WeaponType.SHOTGUN,
+            [AllyType.RIFLEMAN]:    WeaponType.RIFLEMAN,
+            [AllyType.SNIPER]:      WeaponType.SNIPER,
+            [AllyType.RPG_SOLDIER]: WeaponType.RPG,
+            [AllyType.FLAMER]:      WeaponType.FLAMER,
+          };
+          const pool = store.unlockedAllyTypes
+            .map(t => ALLY_TO_WEAPON[t])
+            .filter((w): w is WeaponType => w !== undefined);
+          if (pool.length > 0) {
+            const gp = projResult.newGoldPiles[Math.floor(Math.random() * projResult.newGoldPiles.length)];
+            const wt = pool[Math.floor(Math.random() * pool.length)];
+            newWeaponDrops.push(createWeaponDrop(wt, gp.x, gp.y, store.worldArea));
+          }
         }
       }
     }
@@ -689,6 +693,8 @@ export class GameLoop {
     newWeaponDrops = newWeaponDrops.filter(drop => {
       if (!checkCollision(newPlayer, drop)) return true;
       const cfg = WEAPON_CONFIGS[drop.weaponType];
+      const crateLevel = store.availableUpgrades.find(u => u.id === UpgradeType.WEAPON_TIER)?.currentLevel ?? 1;
+      const heldTTL = WEAPON_CRATE_LEVELS[Math.min(crateLevel, WEAPON_CRATE_LEVELS.length - 1)][2] || WEAPON_HELD_TTL;
       // Snapshot current state only if not already holding a weapon
       const snapshot = newPlayer.weaponBaseSnapshot ?? {
         championType:           newPlayer.championType,
@@ -703,7 +709,7 @@ export class GameLoop {
       newPlayer = {
         ...newPlayer,
         equippedWeapon:          drop.weaponType,
-        weaponTimer:             WEAPON_HELD_TTL,
+        weaponTimer:             heldTTL,
         weaponBaseSnapshot:      snapshot,
         // Set championType so player fires & looks exactly like the corresponding ally
         championType:            weaponAllyType,
@@ -784,9 +790,11 @@ export class GameLoop {
       newNextAllySpawnTimer = ALLY_SPAWN_INTERVAL;
     }
 
-    // ── 14.5. Timed weapon drop spawn ─────────────────────────────────────
+    // ── 14.5. Timed weapon drop spawn (requires WEAPON_CRATES level >= 2) ──────
+    const crateLvl = store.availableUpgrades.find(u => u.id === UpgradeType.WEAPON_TIER)?.currentLevel ?? 0;
+    const [, timedInterval] = WEAPON_CRATE_LEVELS[Math.min(crateLvl, WEAPON_CRATE_LEVELS.length - 1)];
     let newWeaponDropSpawnTimer = (store.weaponDropSpawnTimer ?? WEAPON_DROP_SPAWN_TIMER) - DELTA_SECONDS;
-    if (newWeaponDropSpawnTimer <= 0 && !isTutorial) {
+    if (timedInterval > 0 && newWeaponDropSpawnTimer <= 0 && !isTutorial) {
       const ALLY_TO_WPN: Partial<Record<AllyType, WeaponType>> = {
         [AllyType.SHOTGUN]:     WeaponType.SHOTGUN,
         [AllyType.RIFLEMAN]:    WeaponType.RIFLEMAN,
@@ -803,6 +811,9 @@ export class GameLoop {
         const spawnY = store.camera.y + 80 + Math.random() * Math.max(1, store.gameArea.height - 160);
         newWeaponDrops.push(createWeaponDrop(wt, spawnX, spawnY, store.worldArea));
       }
+      newWeaponDropSpawnTimer = timedInterval;
+    } else if (timedInterval === 0) {
+      // Keep timer frozen while timed drops are locked
       newWeaponDropSpawnTimer = WEAPON_DROP_SPAWN_TIMER;
     }
 
