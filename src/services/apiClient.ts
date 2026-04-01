@@ -54,6 +54,7 @@ export function submitScore(payload: {
   score: number;
   round: number;
   kills: number;
+  playerId?: string;
   runId?: string;
 }): Promise<{ id: string }> {
   return post('/leaderboard', payload);

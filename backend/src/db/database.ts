@@ -39,6 +39,7 @@ export async function initDb(): Promise<void> {
 
     CREATE TABLE IF NOT EXISTS leaderboard (
       id          TEXT PRIMARY KEY,
+      player_id   TEXT,
       player_name TEXT NOT NULL,
       score       INTEGER NOT NULL,
       round       INTEGER NOT NULL,
@@ -47,7 +48,14 @@ export async function initDb(): Promise<void> {
     );
 
     CREATE INDEX IF NOT EXISTS idx_lb_score ON leaderboard (score DESC);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_lb_player_id ON leaderboard (player_id) WHERE player_id IS NOT NULL;
   `);
+
+  // Migration: add player_id column to existing DBs that predate this change
+  try {
+    await _db.execute('ALTER TABLE leaderboard ADD COLUMN player_id TEXT');
+    await _db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_lb_player_id ON leaderboard (player_id) WHERE player_id IS NOT NULL');
+  } catch { /* column already exists — ok */ }
 
   console.log('Database initialized at', DB_URL);
 }

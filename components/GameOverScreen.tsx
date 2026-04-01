@@ -4,7 +4,7 @@ import { Player } from '../types';
 import { UI_STROKE_PRIMARY, UI_STROKE_SECONDARY } from '../constants';
 import { submitScore, recordRun, fetchLeaderboard } from '../src/services/apiClient';
 import type { LeaderboardEntry } from '../src/services/apiClient';
-import { getPlayerName, setPlayerName } from '../src/services/session';
+import { getPlayerName, setPlayerName, getOrCreatePlayerId } from '../src/services/session';
 import { saveBestWave } from './StartScreen';
 
 interface GameOverScreenProps {
@@ -46,7 +46,7 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({ player, round, onGoToMe
     const runId = uuidv4();
     try { await recordRun({ playerName: trimmed, round, kills: enemiesKilled, gold: moneyCollected, combo: highestKillCombo }); } catch { /**/ }
     try {
-      const { id } = await submitScore({ playerName: trimmed, score: totalScore, round, kills: enemiesKilled, runId });
+        const { id } = await submitScore({ playerName: trimmed, score: totalScore, round, kills: enemiesKilled, runId, playerId: getOrCreatePlayerId() });
       setMyEntryId(id);
     } catch { /**/ }
   };
