@@ -84,9 +84,13 @@ export class GameLoop {
   start() {
     if (this.rafId !== null) return;
     this.isRunning = true;
+    this.accumulator = 0; // reset so first frame is always clean
     AudioSystem.resume();
     this.lastTimestamp = performance.now();
     this.rafId = requestAnimationFrame(this._loop);
+    // Force one immediate render so the canvas isn't stale before the first rAF fires.
+    // Mirrors the explicit renderCallback call in stop().
+    this.renderCallback?.();
   }
 
   // ── Stop ───────────────────────────────────────────────────────────────────
@@ -124,7 +128,7 @@ export class GameLoop {
     // ── Render exactly once per rAF frame ─────────────────────────────────
     // The Zustand subscription in GameCanvas is bypassed during gameplay
     // (isRunning = true) so we never get 2+ Pixi render passes per rAF.
-    if (ticks > 0) this.renderCallback?.();
+    this.renderCallback?.();
 
     // FPS counter throttled to every 30 frames — setFps() triggers a React
     // re-render of the HUD component; calling it at 60 Hz is wasteful.
