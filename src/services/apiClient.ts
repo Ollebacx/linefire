@@ -74,13 +74,3 @@ export async function fetchLeaderboard(period: 'all' | 'weekly' = 'all'): Promis
   const data = await get<{ entries: LeaderboardEntry[] }>(`/leaderboard${qs}`);
   return data.entries;
 }
-
-export async function requestDirectorCommentary(payload: {
-  round: number;
-  kills: number;
-  combo: number;
-  waveSummary?: string;
-}): Promise<string> {
-  const data = await post<{ commentary: string }>('/ai/director', payload);
-  return data.commentary;
-}

@@ -2,7 +2,6 @@
  * Linefire Backend — Hono server
  *
  * Routes:
- *   POST /ai/director        → Gemini proxy (wave director commentary)
  *   GET  /leaderboard        → top 20 scores
  *   POST /leaderboard        → submit score
  *   GET  /runs               → recent run history
@@ -12,7 +11,6 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
-import { aiDirectorRoute } from './routes/aiDirector.js';
 import { leaderboardRoute } from './routes/leaderboard.js';
 import { runsRoute } from './routes/runs.js';
 import { initDb } from './db/database.js';
@@ -33,7 +31,6 @@ app.use('*', cors({
 app.get('/health', c => c.json({ status: 'ok', ts: Date.now() }));
 
 // ── Feature routes
-app.route('/ai',          aiDirectorRoute);
 app.route('/leaderboard', leaderboardRoute);
 app.route('/runs',        runsRoute);
 
