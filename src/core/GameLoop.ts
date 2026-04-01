@@ -695,7 +695,7 @@ export class GameLoop {
         damage:                 newPlayer.damage,
         shootCooldown:          newPlayer.shootCooldown,
         clipSize:               newPlayer.clipSize ?? GUN_GUY_CLIP_SIZE,
-        reloadDuration:         newPlayer.reloadDuration ?? (GUN_GUY_RELOAD_TIME / 60),
+        reloadDuration:         newPlayer.reloadDuration ?? GUN_GUY_RELOAD_TIME,
         piercingRoundsLevel:    newPlayer.piercingRoundsLevel,
         projectileSpeedModifier: newPlayer.projectileSpeedModifier,
       };

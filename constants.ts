@@ -23,21 +23,21 @@ export const UI_ACCENT_LIGHTNING = '#00E5FF';   // Electric cyan
 export interface WeaponConfig {
   label: string;
   allyType: AllyType | undefined; // undefined = GUN_GUY path
-  shootCooldown: number;          // seconds (ticks / 60)
+  shootCooldown: number;          // ticks (same unit as ally shootCooldown)
   damage: number;
   clipSize: number;
-  reloadDuration: number;         // seconds
+  reloadDuration: number;         // ticks
   color: string;
   rendererColor: number;
 }
 
 export const WEAPON_CONFIGS: Record<WeaponType, WeaponConfig> = {
-  [WeaponType.PISTOL]:   { label: 'PISTOL',   allyType: undefined,            shootCooldown: 10 / 60,  damage: 10,  clipSize: 6,  reloadDuration: 2.0, color: '#00FFCC', rendererColor: 0x00FFCC },
-  [WeaponType.SHOTGUN]:  { label: 'SHOTGUN',  allyType: AllyType.SHOTGUN,     shootCooldown: 30 / 60,  damage: 7,   clipSize: 8,  reloadDuration: 2.0, color: '#FF2055', rendererColor: 0xFF2055 },
-  [WeaponType.RIFLEMAN]: { label: 'RIFLEMAN', allyType: AllyType.RIFLEMAN,    shootCooldown: 20 / 60,  damage: 9,   clipSize: 24, reloadDuration: 1.8, color: '#00E5FF', rendererColor: 0x00E5FF },
-  [WeaponType.SNIPER]:   { label: 'SNIPER',   allyType: AllyType.SNIPER,      shootCooldown: 70 / 60,  damage: 35,  clipSize: 5,  reloadDuration: 2.5, color: '#CC44FF', rendererColor: 0xCC44FF },
-  [WeaponType.RPG]:      { label: 'RPG',      allyType: AllyType.RPG_SOLDIER, shootCooldown: 160 / 60, damage: 40,  clipSize: 3,  reloadDuration: 3.0, color: '#FF9500', rendererColor: 0xFF9500 },
-  [WeaponType.FLAMER]:   { label: 'FLAMER',   allyType: AllyType.FLAMER,      shootCooldown: 30 / 60,  damage: 4,   clipSize: 50, reloadDuration: 1.5, color: '#FF6600', rendererColor: 0xFF6600 },
+  [WeaponType.PISTOL]:   { label: 'PISTOL',   allyType: undefined,            shootCooldown: 10,  damage: 10,  clipSize: 6,  reloadDuration: 120, color: '#00FFCC', rendererColor: 0x00FFCC },
+  [WeaponType.SHOTGUN]:  { label: 'SHOTGUN',  allyType: AllyType.SHOTGUN,     shootCooldown: 30,  damage: 7,   clipSize: 8,  reloadDuration: 120, color: '#FF2055', rendererColor: 0xFF2055 },
+  [WeaponType.RIFLEMAN]: { label: 'RIFLEMAN', allyType: AllyType.RIFLEMAN,    shootCooldown: 20,  damage: 9,   clipSize: 24, reloadDuration: 108, color: '#00E5FF', rendererColor: 0x00E5FF },
+  [WeaponType.SNIPER]:   { label: 'SNIPER',   allyType: AllyType.SNIPER,      shootCooldown: 70,  damage: 35,  clipSize: 5,  reloadDuration: 150, color: '#CC44FF', rendererColor: 0xCC44FF },
+  [WeaponType.RPG]:      { label: 'RPG',      allyType: AllyType.RPG_SOLDIER, shootCooldown: 160, damage: 40,  clipSize: 3,  reloadDuration: 180, color: '#FF9500', rendererColor: 0xFF9500 },
+  [WeaponType.FLAMER]:   { label: 'FLAMER',   allyType: AllyType.FLAMER,      shootCooldown: 30,  damage: 4,   clipSize: 50, reloadDuration: 90,  color: '#FF6600', rendererColor: 0xFF6600 },
 };
 
 // Weapon → AllyType mapping for visual/shooting behavior
