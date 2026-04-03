@@ -78,31 +78,53 @@ export interface GameStore extends GameState {
 
 // ─── Meta-progress persistence ──────────────────────────────────────────────
 const META_KEY = 'linefire_meta';
+const META_VERSION = 1;
 
 interface MetaProgress {
+  version: number;
   upgradeLevels: Record<string, number>;
   unlockedAllyTypes: AllyType[];
 }
 
+// In-memory cache — avoids repeated JSON.parse on every buildInitialState call
+let _metaCache: MetaProgress | null | undefined = undefined; // undefined = not yet loaded
+
 function loadMeta(): MetaProgress | null {
+  if (_metaCache !== undefined) return _metaCache;
   try {
     const raw = localStorage.getItem(META_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as MetaProgress;
+    if (!raw) { _metaCache = null; return null; }
+    const parsed = JSON.parse(raw) as MetaProgress;
+    // Invalidate cache if saved with an older schema version
+    _metaCache = (parsed.version === META_VERSION) ? parsed : null;
+    return _metaCache;
   } catch {
+    _metaCache = null;
     return null;
   }
 }
 
+let _saveMetaTimer: ReturnType<typeof setTimeout> | null = null;
+
 export function saveMeta(upgrades: { id: string; currentLevel: number }[], unlocked: AllyType[]): void {
   const meta: MetaProgress = {
+    version: META_VERSION,
     upgradeLevels: Object.fromEntries(upgrades.map(u => [u.id, u.currentLevel])),
     unlockedAllyTypes: unlocked,
   };
-  localStorage.setItem(META_KEY, JSON.stringify(meta));
+  // Update in-memory cache immediately so subsequent reads are consistent
+  _metaCache = meta;
+  // Defer the actual localStorage write off the main-thread critical path
+  if (_saveMetaTimer !== null) clearTimeout(_saveMetaTimer);
+  _saveMetaTimer = setTimeout(() => {
+    localStorage.setItem(META_KEY, JSON.stringify(meta));
+    _saveMetaTimer = null;
+  }, 0);
 }
 
 export function clearMeta(): void {
+  _metaCache = null;
+  if (_saveMetaTimer !== null) { clearTimeout(_saveMetaTimer); _saveMetaTimer = null; }
   localStorage.removeItem(META_KEY);
 }
 
@@ -186,7 +208,7 @@ function buildInitialState(gameArea: Size, isTouchDevice: boolean, controlScheme
     unlockedAllyTypes,
     cameraShake: null,
     isTouchDevice,
-    controlScheme: controlScheme ?? (typeof localStorage !== 'undefined' ? (localStorage.getItem('linefire_control_scheme') as 'keyboard' | 'mouse' | null) ?? 'keyboard' : 'keyboard'),
+    controlScheme: controlScheme ?? 'keyboard',
     specialEnemyState: { ...INITIAL_SPECIAL_ENEMY_SPAWN_STATE },
     comboTimer: 0,
     airstrikeAvailable: false,
@@ -398,6 +420,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       lastShootingDirection: { x: 1, y: 0 },
       airstrikeAvailable: false, airstrikeActive: false, airstrikesPending: 0, airstrikeSpawnTimer: 0,
       shieldAbilityTimer: 0, championType: undefined,
+      equippedWeapon: WeaponType.PISTOL, weaponTimer: 0, weaponBaseSnapshot: undefined,
       clipSize: p.clipSize || GUN_GUY_CLIP_SIZE,
       ammoLeftInClip: p.clipSize || GUN_GUY_CLIP_SIZE,
       reloadDuration: p.reloadDuration || GUN_GUY_RELOAD_TIME,
@@ -419,7 +442,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const newLogs = s.logs.map(l => ({ ...l, isUnlocked: false }));
     return {
       ...s, gameStatus: 'INIT_NEW_RUN', player: runPlayer, round: 1,
-      enemies: [], projectiles: [], collectibleAllies: initialCollectibles,
+      enemies: [], projectiles: [], goldPiles: [], collectibleAllies: initialCollectibles,
       nextAllySpawnTimer: ALLY_SPAWN_INTERVAL, cameraShake: null,
       shieldZones: [], chainLightningEffects: [],
       specialEnemyState: { ...INITIAL_SPECIAL_ENEMY_SPAWN_STATE },
@@ -444,10 +467,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
         lastShootingDirection: { x: 1, y: 0 },
         airstrikeAvailable: false, airstrikeActive: false, airstrikesPending: 0, airstrikeSpawnTimer: 0,
         shieldAbilityTimer: 0, championType: undefined,
+        equippedWeapon: WeaponType.PISTOL, weaponTimer: 0, weaponBaseSnapshot: undefined,
         clipSize: p.clipSize || GUN_GUY_CLIP_SIZE, ammoLeftInClip: p.clipSize || GUN_GUY_CLIP_SIZE,
         reloadDuration: p.reloadDuration || GUN_GUY_RELOAD_TIME, currentReloadTimer: 0,
       },
-      enemies: [], projectiles: [], currentWaveEnemies: 0, cameraShake: null,
+      enemies: [], projectiles: [], goldPiles: [], currentWaveEnemies: 0, cameraShake: null,
       shieldZones: [], chainLightningEffects: [],
       specialEnemyState: { ...INITIAL_SPECIAL_ENEMY_SPAWN_STATE },
       comboTimer: 0, pendingInitialSpawns: 0, initialSpawnTickCounter: 0,

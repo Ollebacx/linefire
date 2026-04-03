@@ -42,7 +42,7 @@ function allyShootSound(type: AllyType): SoundId {
 import { useGameStore } from '../stores/gameStore';
 import { useUiStore } from '../stores/uiStore';
 
-import { checkCollision, distanceBetweenPoints, distanceBetweenGameObjects, getCenter } from '../utils/geometry';
+import { checkCollision, distanceBetweenPoints, distanceBetweenGameObjects, getCenter, prependCapped } from '../utils/geometry';
 import {
   AIRSTRIKE_MISSILE_DAMAGE, AIRSTRIKE_MISSILE_AOE_RADIUS, AIRSTRIKE_MISSILE_SPEED,
   AIRSTRIKE_PROJECTILE_SIZE, AIRSTRIKE_MISSILE_INTERVAL_TICKS, AIRSTRIKE_COMBO_THRESHOLD,
@@ -196,9 +196,9 @@ export class GameLoop {
     for (const ally of newPlayer.allies) {
       if (ally.isStranded) {
         // Turret: freeze position, but keep pathHistory so shooting direction works
-        const a = { ...ally };
+        const a = { ...ally, pathHistory: [...(ally.pathHistory ?? [])] };
         const center = getCenter(a);
-        a.pathHistory = [center, ...(a.pathHistory ?? [])].slice(0, PATH_HISTORY_LENGTH);
+        prependCapped(a.pathHistory, center, PATH_HISTORY_LENGTH);
         movedAllies.push(a);
       } else {
         // Active: follow the previous active entity in chain

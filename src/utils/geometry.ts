@@ -45,3 +45,14 @@ export function normalizeVector(v: Position): Position {
 export function getCenter(obj: GameObject): Position {
   return { x: obj.x + obj.width / 2, y: obj.y + obj.height / 2 };
 }
+
+/**
+ * Prepend `item` to `arr` in-place, capping the array at `maxLen`.
+ * Uses unshift + length truncation — zero new array allocations.
+ * The caller is responsible for ensuring `arr` is already a mutable copy
+ * and not shared with previous game state.
+ */
+export function prependCapped<T>(arr: T[], item: T, maxLen: number): void {
+  arr.unshift(item);
+  if (arr.length > maxLen) arr.length = maxLen;
+}

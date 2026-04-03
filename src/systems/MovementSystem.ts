@@ -5,7 +5,7 @@
  */
 import { v4 as uuidv4 } from 'uuid';
 import type { Player, Ally, Position, Size } from '../types';
-import { normalizeVector, getCenter, distanceBetweenPoints } from '../utils/geometry';
+import { normalizeVector, getCenter, distanceBetweenPoints, prependCapped } from '../utils/geometry';
 import {
   PLAYER_WORLD_EDGE_MARGIN,
   CAMERA_LERP_FACTOR,
@@ -86,7 +86,7 @@ export function applyPlayerMovement(
   }
 
   p.velocity = { x: dx, y: dy };
-  p.pathHistory = [getCenter(p), ...p.pathHistory].slice(0, PATH_HISTORY_LENGTH);
+  prependCapped(p.pathHistory, getCenter(p), PATH_HISTORY_LENGTH);
   return p;
 }
 
@@ -162,7 +162,7 @@ export function updateAllyMovement(
 
   a.x = Math.max(PLAYER_WORLD_EDGE_MARGIN, Math.min(a.x, WORLD_AREA.width - a.width - PLAYER_WORLD_EDGE_MARGIN));
   a.y = Math.max(PLAYER_WORLD_EDGE_MARGIN, Math.min(a.y, WORLD_AREA.height - a.height - PLAYER_WORLD_EDGE_MARGIN));
-  a.pathHistory = [getCenter(a), ...a.pathHistory].slice(0, PATH_HISTORY_LENGTH);
+  prependCapped(a.pathHistory, getCenter(a), PATH_HISTORY_LENGTH);
   return a;
 }
 

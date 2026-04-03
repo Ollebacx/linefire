@@ -13,6 +13,25 @@ import type { Upgrade } from './types';
 import type { SoundVolumes } from './components/SoundSettingsPanel';
 
 const DEFAULT_VOLUMES: SoundVolumes = { master: 0.75, music: 0.75, sfx: 0.75 };
+const AUDIO_PREFS_KEY = 'linefire_audio_prefs';
+
+function loadAudioPrefs(): { isMuted: boolean; soundVolumes: SoundVolumes } {
+  try {
+    const raw = localStorage.getItem(AUDIO_PREFS_KEY);
+    if (raw) {
+      const p = JSON.parse(raw);
+      return {
+        isMuted: Boolean(p.isMuted),
+        soundVolumes: { ...DEFAULT_VOLUMES, ...(p.soundVolumes ?? {}) },
+      };
+    }
+  } catch { /* ignore */ }
+  return { isMuted: false, soundVolumes: DEFAULT_VOLUMES };
+}
+
+function saveAudioPrefs(isMuted: boolean, soundVolumes: SoundVolumes): void {
+  localStorage.setItem(AUDIO_PREFS_KEY, JSON.stringify({ isMuted, soundVolumes }));
+}
 
 // ── Shop screen ─────────────────────────────────────────────────────────────
 // Isolated so App never re-renders on player/upgrade changes during SHOP.
@@ -40,8 +59,9 @@ export const App: React.FC = () => {
   const [trueFullscreenSize, setTrueFullscreenSize] = useState<Size>({ width: window.innerWidth, height: window.innerHeight });
   const gameOuterContainerRef = useRef<HTMLDivElement>(null);
   const gameAreaRef           = useRef<HTMLDivElement>(null);
-  const [isMuted,        setIsMuted]        = useState(false);
-  const [soundVolumes,   setSoundVolumes]   = useState<SoundVolumes>(DEFAULT_VOLUMES);
+  const _initAudio                          = useState(() => loadAudioPrefs())[0];
+  const [isMuted,        setIsMuted]        = useState<boolean>(_initAudio.isMuted);
+  const [soundVolumes,   setSoundVolumes]   = useState<SoundVolumes>(_initAudio.soundVolumes);
   const [showSoundPanel, setShowSoundPanel] = useState(false);
 
   // ── NARROW store subscriptions ──────────────────────────────────────────
@@ -86,7 +106,12 @@ export const App: React.FC = () => {
 
   // ── Volume helpers ───────────────────────────────────────────────────────
   const toggleMute = useCallback(() => {
-    setIsMuted(prev => { const next = !prev; AudioSystem.toggleMute(); return next; });
+    setIsMuted(prev => {
+      const next = !prev;
+      AudioSystem.toggleMute();
+      setSoundVolumes(vols => { saveAudioPrefs(next, vols); return vols; });
+      return next;
+    });
   }, []);
 
   const handleVolumeChange = useCallback((key: keyof SoundVolumes, value: number) => {
@@ -95,9 +120,19 @@ export const App: React.FC = () => {
       if      (key === 'master') AudioSystem.setMasterVolume(value);
       else if (key === 'music')  AudioSystem.setMusicVolume(value);
       else if (key === 'sfx')    AudioSystem.setSfxVolume(value);
+      setIsMuted(m => { saveAudioPrefs(m, next); return m; });
       return next;
     });
   }, []);
+
+  // ── Restore saved audio prefs to AudioSystem on mount ───────────────────
+  useEffect(() => {
+    AudioSystem.setMasterVolume(soundVolumes.master);
+    AudioSystem.setMusicVolume(soundVolumes.music);
+    AudioSystem.setSfxVolume(soundVolumes.sfx);
+    if (isMuted) AudioSystem.toggleMute();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally run once on mount only
 
   // ── Music engine ─────────────────────────────────────────────────────────
   useEffect(() => {
