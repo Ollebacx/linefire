@@ -212,26 +212,62 @@ export class PixiRenderer {
     state.effectParticles.forEach(ep => this._particle(ep));
     state.damageTexts.forEach(dt => this._damageText(dt));
 
-    // ── Hide stale pool entries ───────────────────────────────────────────────
-    this.trailPool.forEach((g, id)   => { if (!this.activeTrailIds.has(id))    g.visible = false; });
-    this.projPool.forEach((g, id)    => { if (!this.activeIds.has(id))         g.visible = false; });
-    this.goldPool.forEach((g, id)    => { if (!this.activeIds.has(id))         g.visible = false; });
-    this.dropPool.forEach((g, id)    => { if (!this.activeIds.has(id))         g.visible = false; });
-    this.shieldPool.forEach((g, id)  => { if (!this.activeIds.has(id))         g.visible = false; });
-    this.entityPool.forEach((e, id)  => {
-      if (!this.activeIds.has(id)) { e.body.visible = false; e.hud.visible = false; }
-    });
-    this.chainPool.forEach((g, id)   => { if (!this.activeIds.has(id))         g.visible = false; });
-    this.effectLayer.children.forEach(() => {}); // handled by particlePool
-    this.particlePool.forEach((g, id) => { if (!this.activeIds.has(id))        g.visible = false; });
-    this.muzzlePool.forEach((g, id)  => { if (!this.activeIds.has(id))         g.visible = false; });
-    this.textPool.forEach((t, id)    => { if (!this.activeTextIds.has(id))     t.visible = false; });
+    // ── Prune stale pool entries (destroy Graphics to free GPU memory) ─────────
+    this._prunePool(this.trailPool,    this.trailLayer,   this.activeTrailIds);
+    this._prunePool(this.projPool,     this.projLayer,    this.activeIds);
+    this._prunePool(this.goldPool,     this.goldLayer,    this.activeIds);
+    this._prunePool(this.dropPool,     this.goldLayer,    this.activeIds);
+    this._prunePool(this.shieldPool,   this.shieldLayer,  this.activeIds);
+    this._prunePool(this.chainPool,    this.chainLayer,   this.activeIds);
+    this._prunePool(this.particlePool, this.effectLayer,  this.activeIds);
+    this._prunePool(this.muzzlePool,   this.effectLayer,  this.activeIds);
+    this._pruneEntityPool();
+    this._pruneTextPool();
 
     // Drive the renderer manually
     this.app.renderer.render(this.app.stage);
   }
 
   // ── Pool helpers ─────────────────────────────────────────────────────────────
+  /** Destroy and remove all stale Graphics entries from a pool. */
+  private _prunePool(pool: Map<string, Graphics>, layer: Container, activeSet: Set<string>): void {
+    if (pool.size === 0) return;
+    const dead: string[] = [];
+    pool.forEach((_, id) => { if (!activeSet.has(id)) dead.push(id); });
+    for (const id of dead) {
+      const g = pool.get(id)!;
+      layer.removeChild(g);
+      g.destroy();
+      pool.delete(id);
+    }
+  }
+
+  private _pruneEntityPool(): void {
+    if (this.entityPool.size === 0) return;
+    const dead: string[] = [];
+    this.entityPool.forEach((_, id) => { if (!this.activeIds.has(id)) dead.push(id); });
+    for (const id of dead) {
+      const e = this.entityPool.get(id)!;
+      this.entityLayer.removeChild(e.body);
+      this.hudLayer.removeChild(e.hud);
+      e.body.destroy();
+      e.hud.destroy();
+      this.entityPool.delete(id);
+    }
+  }
+
+  private _pruneTextPool(): void {
+    if (this.textPool.size === 0) return;
+    const dead: string[] = [];
+    this.textPool.forEach((_, id) => { if (!this.activeTextIds.has(id)) dead.push(id); });
+    for (const id of dead) {
+      const t = this.textPool.get(id)!;
+      this.textLayer.removeChild(t);
+      t.destroy();
+      this.textPool.delete(id);
+    }
+  }
+
   private _gfx(id: string, pool: Map<string, Graphics>, layer: Container): Graphics {
     let g = pool.get(id);
     if (!g) { g = new Graphics(); layer.addChild(g); pool.set(id, g); }
