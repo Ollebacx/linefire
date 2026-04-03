@@ -93,34 +93,30 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ width, height, onReady }
   useEffect(() => {
     if (!ready) return;
 
-    let prevStatus = useGameStore.getState().gameStatus;
+    const shouldRun = (status: string) =>
+      status === 'PLAYING'          ||
+      status === 'INIT_NEW_RUN'     ||
+      status === 'GAME_OVER_PENDING'||
+      status === 'TUTORIAL_ACTIVE'  ||
+      status === 'ROUND_COMPLETE';
+
+    // React to every store change — not just transitions — so we never miss a
+    // status that was already set before this effect ran (e.g. on re-mount or
+    // when GameCanvas stays mounted across games).
     const unsubscribe = useGameStore.subscribe((state) => {
-      const { gameStatus } = state;
-      if (gameStatus === prevStatus) return;
-      prevStatus = gameStatus;
-      if (
-        gameStatus === 'PLAYING'      ||
-        gameStatus === 'INIT_NEW_RUN' ||
-        gameStatus === 'GAME_OVER_PENDING' ||
-        gameStatus === 'TUTORIAL_ACTIVE'   ||
-        gameStatus === 'ROUND_COMPLETE'
-      ) {
-        gameLoop.start();
+      if (shouldRun(state.gameStatus)) {
+        if (!gameLoop.isRunning) gameLoop.start();
       } else {
-        gameLoop.stop();
+        if (gameLoop.isRunning) gameLoop.stop();
       }
     });
 
-    // Trigger immediately for current status
+    // Evaluate immediately for current status.
     const { gameStatus } = useGameStore.getState();
-    if (
-      gameStatus === 'PLAYING'      ||
-      gameStatus === 'INIT_NEW_RUN' ||
-      gameStatus === 'GAME_OVER_PENDING' ||
-      gameStatus === 'TUTORIAL_ACTIVE'   ||
-      gameStatus === 'ROUND_COMPLETE'
-    ) {
+    if (shouldRun(gameStatus)) {
       gameLoop.start();
+    } else {
+      gameLoop.stop();
     }
 
     return () => { gameLoop.stop(); unsubscribe(); };

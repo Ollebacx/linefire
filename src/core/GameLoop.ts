@@ -82,14 +82,17 @@ export class GameLoop {
 
   // ── Start ──────────────────────────────────────────────────────────────────
   start() {
-    if (this.rafId !== null) return;
+    // Cancel any existing rAF before starting fresh — prevents double-loop if
+    // start() is called while already running (e.g. INIT_NEW_RUN → PLAYING).
+    if (this.rafId !== null) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
     this.isRunning = true;
-    this.accumulator = 0; // reset so first frame is always clean
+    this.accumulator = 0;
     AudioSystem.resume();
     this.lastTimestamp = performance.now();
     this.rafId = requestAnimationFrame(this._loop);
-    // Force one immediate render so the canvas isn't stale before the first rAF fires.
-    // Mirrors the explicit renderCallback call in stop().
     this.renderCallback?.();
   }
 
