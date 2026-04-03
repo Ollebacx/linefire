@@ -39,22 +39,23 @@ export function applyPlayerMovement(
   if (input.isTouchDevice && (input.joystickDirection.x !== 0 || input.joystickDirection.y !== 0)) {
     dx = input.joystickDirection.x * p.speed;
     dy = input.joystickDirection.y * p.speed;
-  } else if (input.controlScheme === 'mouse') {
-    // ── Mouse-only scheme: move toward cursor, keyboard ignored ──
-    if (input.mousePosition) {
-      const playerCenter = getCenter(p);
-      const worldX = input.mousePosition.x + camera.x;
-      const worldY = input.mousePosition.y + camera.y;
-      const vecX = worldX - playerCenter.x;
-      const vecY = worldY - playerCenter.y;
-      const dist = Math.sqrt(vecX ** 2 + vecY ** 2);
-      if (dist > p.width * 0.5) {
-        dx = (vecX / dist) * p.speed;
-        dy = (vecY / dist) * p.speed;
-      }
+  } else if (input.controlScheme === 'mouse' && input.mousePosition) {
+    // ── Mouse scheme: move toward cursor when cursor is on canvas ──
+    const playerCenter = getCenter(p);
+    const worldX = input.mousePosition.x + camera.x;
+    const worldY = input.mousePosition.y + camera.y;
+    const vecX = worldX - playerCenter.x;
+    const vecY = worldY - playerCenter.y;
+    const dist = Math.sqrt(vecX ** 2 + vecY ** 2);
+    if (dist > p.width * 0.5) {
+      dx = (vecX / dist) * p.speed;
+      dy = (vecY / dist) * p.speed;
     }
   } else {
-    // ── Keyboard-only scheme: WASD / Arrow keys, mouse ignored ──
+    // ── Keyboard mode, OR mouse mode with cursor off-canvas ──
+    // Falling back to WASD/arrow keys prevents the player from freezing
+    // when controlScheme='mouse' is restored from localStorage but the
+    // cursor hasn't yet entered the canvas.
     const keys = input.keysPressed;
     let kx = 0, ky = 0;
     if (keys['w'] || keys['W'] || keys['ArrowUp'])    ky -= p.speed;
