@@ -428,6 +428,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       gameOverPendingTimer: 0, waveTitleText: '', waveTitleTimer: 0,
       weaponDrops: [], weaponDropSpawnTimer: WEAPON_DROP_SPAWN_TIMER,
       damageTexts: [], muzzleFlashes: [], effectParticles: [],
+      keysPressed: {}, joystickDirection: { x: 0, y: 0 }, mousePosition: null,
     };
   }),
 
@@ -452,6 +453,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       comboTimer: 0, pendingInitialSpawns: 0, initialSpawnTickCounter: 0,
       gameOverPendingTimer: 0, waveTitleText: '', waveTitleTimer: 0,
       damageTexts: [], muzzleFlashes: [], effectParticles: [],
+      keysPressed: {}, joystickDirection: { x: 0, y: 0 }, mousePosition: null,
     };
   }),
 

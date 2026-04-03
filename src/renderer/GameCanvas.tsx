@@ -128,6 +128,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ width, height, onReady }
 
   // ── Keyboard events on window (no focus required) ────────────────────────────
   useEffect(() => {
+    // Ensure window has focus so keydown events fire immediately on game start.
+    // Some browsers lose focus to the last-clicked button (e.g. the Shop "Play" button).
+    window.focus();
     const onKeyDown = (e: KeyboardEvent) => {
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
         e.preventDefault();
