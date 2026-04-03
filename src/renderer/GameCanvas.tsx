@@ -41,11 +41,28 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ width, height, onReady }
 
   // ── Init Pixi once — wire render/loop INSIDE the promise so StrictMode
   //    double-invoke never leaves renderCallback=null. ─────────────────────────
+  //
+  // IMPORTANT: the canvas element in JSX has NO width/height React props.
+  // Passing width={w} height={h} as React props causes React to call
+  // canvas.width = w on every re-render that changes dimensions.
+  // canvas.width assignment resets the WebGL context — mid-init on first load
+  // this corrupts Pixi, which freezes the renderer (music still plays because
+  // React effects manage audio independently of the game loop).
+  // On reload the init is fast enough that Pixi completes before App's resize
+  // effect triggers a re-render, so the bug doesn't show.
+  //
+  // Instead we set the backing-buffer size imperatively here (once), then let
+  // Pixi's own resize() handle all subsequent dimension changes.
   useEffect(() => {
     if (!canvasRef.current) return;
     let aborted = false;
     let unsubRender:  (() => void) | null = null;
     let unsubLoop:    (() => void) | null = null;
+
+    // Set initial backing-buffer dimensions imperatively so there's no
+    // 300×150 flash before Pixi inits, and so React never resets them.
+    canvasRef.current.width  = width;
+    canvasRef.current.height = height;
 
     const renderer = new PixiRenderer();
     rendererRef.current = renderer;
@@ -80,6 +97,13 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ width, height, onReady }
       if (shouldRun(gameStatus)) gameLoop.start(); else gameLoop.stop();
 
       onReady?.();
+    }).catch((err) => {
+      if (!aborted) {
+        // Pixi init failed — log so it's visible in DevTools, then clean up.
+        console.error('[GameCanvas] PixiRenderer.init() failed:', err);
+        renderer.destroy();
+        rendererRef.current = null;
+      }
     });
 
     return () => {
@@ -134,10 +158,13 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ width, height, onReady }
   }, []);
 
   return (
+    // NOTE: width/height are intentionally NOT passed as React props.
+    // React maps those to canvas.width = w and canvas.height = h DOM property
+    // assignments, which reset the WebGL context on every resize re-render.
+    // Pixi owns the backing-buffer dimensions (set in init + resize effects).
+    // CSS style below sizes the element visually in the layout.
     <canvas
       ref={canvasRef}
-      width={width}
-      height={height}
       style={{ position: 'absolute', top: 0, left: 0, display: 'block', outline: 'none', width: `${width}px`, height: `${height}px` }}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
