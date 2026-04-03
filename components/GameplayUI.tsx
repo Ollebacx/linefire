@@ -6,13 +6,10 @@ import WaveStartTitle from './WaveStartTitle';
 import GameOverScreen from './GameOverScreen';
 import TutorialOverlay from './TutorialOverlay';
 import SoundSettingsPanel from './SoundSettingsPanel';
-import { GameCanvas } from '../src/renderer/GameCanvas';
 import { WAVE_TITLE_FADE_OUT_DURATION_TICKS } from '../constants';
 import type { SoundVolumes } from './SoundSettingsPanel';
 
 export interface GameplayUIProps {
-  visualWidth: number;
-  visualHeight: number;
   isMuted: boolean;
   onToggleMute: () => void;
   soundVolumes: SoundVolumes;
@@ -36,7 +33,6 @@ export interface GameplayUIProps {
  * not 60 times per second during gameplay.
  */
 const GameplayUI: React.FC<GameplayUIProps> = ({
-  visualWidth, visualHeight,
   isMuted, onToggleMute, soundVolumes, onVolumeChange,
   showSoundPanel, onToggleSoundPanel, onCloseSoundPanel,
   onPauseToggle, onGoToMenu, onGoToShop, onRetry,
@@ -96,8 +92,6 @@ const GameplayUI: React.FC<GameplayUIProps> = ({
         soundVolumes={soundVolumes}
         onVolumeChange={onVolumeChange}
       />
-
-      <GameCanvas width={visualWidth} height={visualHeight} />
 
       {/* Off-screen enemy indicators */}
       {(gameStatus === 'PLAYING' || gameStatus === 'ROUND_COMPLETE') && enemies.map(enemy => {

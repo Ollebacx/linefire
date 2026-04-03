@@ -5,6 +5,7 @@ import StartScreen from './components/StartScreen';
 import GameplayUI from './components/GameplayUI';
 import BackgroundAnimation from './components/BackgroundAnimation';
 import Joystick from './components/Joystick';
+import { GameCanvas } from './src/renderer/GameCanvas';
 import { UpgradeModal } from './components/UpgradeModal';
 import { AudioSystem } from './src/systems/AudioSystem';
 import type { Size } from './types';
@@ -190,8 +191,6 @@ export const App: React.FC = () => {
     // live inside GameplayUI which owns the fast-changing store subscriptions.
     return (
       <GameplayUI
-        visualWidth={visualGameSize.width}
-        visualHeight={visualGameSize.height}
         isMuted={isMuted}
         onToggleMute={toggleMute}
         soundVolumes={soundVolumes}
@@ -227,6 +226,11 @@ export const App: React.FC = () => {
         tabIndex={0}
         onClick={handleGameAreaClick}
       >
+        {/* Canvas is always mounted — one WebGL context for the entire browser session.
+            Re-creating it each game (mount/unmount) causes GPU memory to accumulate to ~1.3 GB/game.
+            Keeping it alive means Chrome never needs to allocate a second WebGL context. */}
+        <GameCanvas width={visualGameSize.width} height={visualGameSize.height} />
+        {/* UI content overlaid on the canvas (position:relative children + absolute overlays) */}
         {renderContent()}
       </div>
       {isTouchDevice && ['PLAYING','PAUSED','GAME_OVER_PENDING','TUTORIAL_ACTIVE'].includes(gameStatus) && (

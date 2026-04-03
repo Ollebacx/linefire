@@ -173,6 +173,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ width, height, onReady }
       width={width}
       height={height}
       style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
         display: 'block',
         outline: 'none',
         width: `${width}px`,

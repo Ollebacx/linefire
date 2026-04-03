@@ -164,6 +164,27 @@ export class PixiRenderer {
   destroy(): void {
     if (!this.initialized) return;
     this.initialized = false;
+
+    // Explicitly destroy all pooled objects — releases GPU geometry buffers
+    // and breaks reference cycles so the GC can collect the renderer immediately.
+    const clearPool = (pool: Map<string, Graphics>) => {
+      pool.forEach(g => { try { g.destroy(); } catch { /**/ } });
+      pool.clear();
+    };
+    clearPool(this.projPool);
+    clearPool(this.goldPool);
+    clearPool(this.dropPool);
+    clearPool(this.shieldPool);
+    clearPool(this.chainPool);
+    clearPool(this.particlePool);
+    clearPool(this.muzzlePool);
+    clearPool(this.trailPool);
+    this.entityPool.forEach(e => { try { e.body.destroy(); e.hud.destroy(); } catch { /**/ } });
+    this.entityPool.clear();
+    this.textPool.forEach(t => { try { t.destroy(); } catch { /**/ } });
+    this.textPool.clear();
+    try { this.worldBg.destroy(); } catch { /**/ }
+
     this.app.destroy(false);
   }
 
