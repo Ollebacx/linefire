@@ -87,6 +87,15 @@ export class PixiRenderer {
   private textPool    = new Map<string, Text>();
   private trailPool   = new Map<string, Graphics>();
 
+  // Freelists for high-churn pools — recycle Graphics/Text instead of destroy+new.
+  // Eliminates the GPU VBO allocator fragmentation that causes 1.8 GB at wave 12.
+  private readonly projFreeList:     Graphics[] = [];
+  private readonly particleFreeList: Graphics[] = [];
+  private readonly muzzleFreeList:   Graphics[] = [];
+  private readonly textFreeList:     Text[]     = [];
+  // Map from pool → its freelist (looked up in _gfx and _prunePool)
+  private readonly _freeListForPool = new Map<Map<string, Graphics>, Graphics[]>();
+
   // Active-entity tracking (to hide stale pool entries)
   private activeIds      = new Set<string>();
   private activeTextIds  = new Set<string>();
@@ -152,6 +161,12 @@ export class PixiRenderer {
       this.hudLayer, this.textLayer,
     );
     this.app.stage.addChild(this.world);
+
+    // Associate high-churn pools with their freelists
+    this._freeListForPool.set(this.projPool,     this.projFreeList);
+    this._freeListForPool.set(this.particlePool, this.particleFreeList);
+    this._freeListForPool.set(this.muzzlePool,   this.muzzleFreeList);
+
     this.initialized = true;
   }
 
@@ -183,6 +198,11 @@ export class PixiRenderer {
     this.entityPool.clear();
     this.textPool.forEach(t => { try { t.destroy(); } catch { /**/ } });
     this.textPool.clear();
+    // Clear freelists
+    this.projFreeList.forEach(g     => { try { g.destroy(); } catch { /**/ } }); this.projFreeList.length     = 0;
+    this.particleFreeList.forEach(g => { try { g.destroy(); } catch { /**/ } }); this.particleFreeList.length = 0;
+    this.muzzleFreeList.forEach(g   => { try { g.destroy(); } catch { /**/ } }); this.muzzleFreeList.length   = 0;
+    this.textFreeList.forEach(t     => { try { t.destroy(); } catch { /**/ } }); this.textFreeList.length     = 0;
     try { this.worldBg.destroy(); } catch { /**/ }
 
     this.app.destroy(false);
@@ -250,15 +270,25 @@ export class PixiRenderer {
   }
 
   // ── Pool helpers ─────────────────────────────────────────────────────────────
-  /** Destroy and remove all stale Graphics entries from a pool. */
+  /** Recycle stale Graphics entries back to the freelist (or destroy if overflow). */
   private _prunePool(pool: Map<string, Graphics>, layer: Container, activeSet: Set<string>): void {
     if (pool.size === 0) return;
     const dead: string[] = [];
     pool.forEach((_, id) => { if (!activeSet.has(id)) dead.push(id); });
+    const freeList = this._freeListForPool.get(pool);
     for (const id of dead) {
       const g = pool.get(id)!;
+      g.visible = false;
       layer.removeChild(g);
-      g.destroy();
+      if (freeList && freeList.length < 120) {
+        // Recycle: keep the WebGL VBO alive, reuse for next entity of same type.
+        // This is zero-cost GPU-wise: the buffer already exists.
+        g.clear();
+        freeList.push(g);
+      } else {
+        // Overflow: truly free it (pool is more than large enough for steady-state).
+        try { g.destroy(); } catch { /**/ }
+      }
       pool.delete(id);
     }
   }
@@ -283,15 +313,26 @@ export class PixiRenderer {
     this.textPool.forEach((_, id) => { if (!this.activeTextIds.has(id)) dead.push(id); });
     for (const id of dead) {
       const t = this.textPool.get(id)!;
+      t.visible = false;
       this.textLayer.removeChild(t);
-      t.destroy();
+      if (this.textFreeList.length < 50) {
+        this.textFreeList.push(t);
+      } else {
+        try { t.destroy(); } catch { /**/ }
+      }
       this.textPool.delete(id);
     }
   }
 
   private _gfx(id: string, pool: Map<string, Graphics>, layer: Container): Graphics {
     let g = pool.get(id);
-    if (!g) { g = new Graphics(); layer.addChild(g); pool.set(id, g); }
+    if (!g) {
+      // Pull a recycled object from the freelist first — avoids GPU reallocation.
+      const freeList = this._freeListForPool.get(pool);
+      g = freeList?.pop() ?? new Graphics();
+      layer.addChild(g);
+      pool.set(id, g);
+    }
     g.visible = true;
     this.activeIds.add(id);
     return g;
@@ -314,7 +355,7 @@ export class PixiRenderer {
   private _txt(id: string): Text {
     let t = this.textPool.get(id);
     if (!t) {
-      t = new Text({ text: '', style: { fontSize: 14, fill: C.STROKE, fontWeight: 'bold', fontFamily: 'Inter, sans-serif' } });
+      t = this.textFreeList.pop() ?? new Text({ text: '', style: { fontSize: 14, fill: C.STROKE, fontWeight: 'bold', fontFamily: 'Inter, sans-serif' } });
       this.textLayer.addChild(t);
       this.textPool.set(id, t);
     }
