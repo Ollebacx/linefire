@@ -134,7 +134,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({ width, height, onReady }
       if (e.key === 'q' || e.key === 'Q') { store.activateAirstrike(); return; }
       if (e.key === 'e' || e.key === 'E') { store.deployShieldZone(); return; }
       if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') { store.togglePause(); return; }
-      if ((e.key === 'd' || e.key === 'D') && e.ctrlKey) { e.preventDefault(); store.maxOutAllUpgrades(); return; }
+      if ((e.key === 'd' || e.key === 'D') && (e.ctrlKey || e.metaKey)) return; // handled by App.tsx (capture)
       store.setKeyDown(e.key);
     };
     const onKeyUp = (e: KeyboardEvent) => useGameStore.getState().setKeyUp(e.key);

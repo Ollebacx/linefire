@@ -44,11 +44,11 @@ export const ALLY_RPG_SOLDIER_COOLDOWN                 = 160;
 export const ALLY_RPG_SOLDIER_RANGE                    = 500;
 export const ALLY_RPG_SOLDIER_PROJECTILE_SPEED_MULTIPLIER = 1.8;
 
-export const ALLY_FLAMER_DAMAGE          = 4;
-export const ALLY_FLAMER_COOLDOWN        = 30;
-export const ALLY_FLAMER_RANGE           = ALLY_MINIGUNNER_RANGE;
+export const ALLY_FLAMER_DAMAGE          = 8;
+export const ALLY_FLAMER_COOLDOWN        = 14;
+export const ALLY_FLAMER_RANGE           = 220; // close-range specialist
 export const ALLY_FLAMER_PROJECTILE_COUNT = 4;
-export const ALLY_FLAMER_SPREAD_ANGLE    = 0;
+export const ALLY_FLAMER_SPREAD_ANGLE    = 40;  // wide fire cone
 
 export const ALLY_RIFLEMAN_DAMAGE                    = 9;
 export const ALLY_RIFLEMAN_COOLDOWN                  = 20;

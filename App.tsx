@@ -95,14 +95,18 @@ export const App: React.FC = () => {
     setControlScheme:    s.setControlScheme,
   })));
 
-  // ── Debug: Ctrl+D → max upgrades ────────────────────────────────────────
+  // ── Debug: Ctrl+D (capture phase — fires before any element handler) ──────
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.key === 'd' || e.key === 'D') && e.ctrlKey) { e.preventDefault(); maxOutAllUpgrades(); }
+      if ((e.key === 'd' || e.key === 'D') && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        e.stopPropagation();
+        useGameStore.getState().maxOutAllUpgrades();
+      }
     };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [maxOutAllUpgrades]);
+    document.addEventListener('keydown', onKeyDown, true); // capture = true
+    return () => document.removeEventListener('keydown', onKeyDown, true);
+  }, []);
 
   // ── Volume helpers ───────────────────────────────────────────────────────
   const toggleMute = useCallback(() => {

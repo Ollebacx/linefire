@@ -788,17 +788,17 @@ export class PixiRenderer {
        .stroke({ color: C.CRITICAL, alpha: 0.12, width: 4 });
 
     } else if (proj.width === FLAMER_PROJECTILE_SIZE.width) {
-      g.alpha = proj.maxTravelDistance ? Math.max(0, 1 - (proj.distanceTraveled ?? 0) / proj.maxTravelDistance) : 1;
-      const flameColors = [C.WARNING, C.CRITICAL, 0xFFA500];
-      const n = 3 + Math.floor(Math.random() * 3);
-      for (let i = 0; i < n; i++) {
-        const ang = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
-        const len = proj.width * (0.3 + Math.random() * 0.4);
-        const ex  = Math.cos(ang) * len, ey = Math.sin(ang) * len;
-        const cpx = Math.cos(ang + Math.PI / 2) * len * 0.3 * (Math.random() > 0.5 ? 1 : -1);
-        const cpy = Math.sin(ang + Math.PI / 2) * len * 0.3 * (Math.random() > 0.5 ? 1 : -1);
-        g.moveTo(0, 0).quadraticCurveTo(cpx, cpy, ex, ey).stroke({ color: flameColors[i % 3], width: SW });
-      }
+      // Burning ember — small fireball, consistent movement mechanics, fire palette
+      const r = proj.width * 0.36;
+      // Outer heat haze
+      g.circle(0, 0, r * 2.8).fill({ color: 0xFF6600, alpha: 0.10 });
+      g.circle(0, 0, r * 1.9).fill({ color: 0xFF4400, alpha: 0.18 });
+      // Ember body
+      g.circle(0, 0, r).fill({ color: 0xFF6600, alpha: 1 });
+      // Hot inner glow
+      g.circle(0, 0, r * 0.52).fill({ color: 0xFFCC22, alpha: 0.95 });
+      // White-hot core
+      g.circle(0, 0, r * 0.22).fill({ color: 0xFFFFFF, alpha: 0.90 });
 
     } else if (proj.width === RPG_PROJECTILE_SIZE.width && proj.height === RPG_PROJECTILE_SIZE.height) {
       const hW = proj.width / 2, hH = proj.height / 2;

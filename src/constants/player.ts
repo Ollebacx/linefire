@@ -27,8 +27,8 @@ export const AIRSTRIKE_PROJECTILE_SIZE: Size = { width: 10, height: 22 };
 
 export const PLAYER_ALLY_PROJECTILE_SPEED   = 4;
 export const ENEMY_PROJECTILE_SPEED         = 2.8;
-export const FLAMER_PROJECTILE_SPEED        = PLAYER_ALLY_PROJECTILE_SPEED * 0.5;
-export const FLAMER_PROJECTILE_MAX_TRAVEL_DISTANCE = 120;
+export const FLAMER_PROJECTILE_SPEED        = PLAYER_ALLY_PROJECTILE_SPEED * 1.0;
+export const FLAMER_PROJECTILE_MAX_TRAVEL_DISTANCE = 350; // covers full range, no mid-air fade
 export const AIRSTRIKE_MISSILE_SPEED        = 7;
 
 // ── Gold / collectibles ───────────────────────────────────────────────────────
@@ -38,7 +38,7 @@ export const GOLD_MAGNET_PULL_SPEED      = 5;   // px/tick toward player when wi
 
 // ── Shield zone ───────────────────────────────────────────────────────────────
 export const SHIELD_ZONE_DEFAULT_DURATION     = 180;  // ticks
-export const SHIELD_ZONE_DEFAULT_RADIUS       = 80;   // px
+export const SHIELD_ZONE_DEFAULT_RADIUS       = 60;   // px
 export const SHIELD_ZONE_ABILITY_BASE_COOLDOWN = 600; // ticks (~10s)
 export const SHIELD_ZONE_OPACITY_PULSE_MIN    = 0.15;
 export const SHIELD_ZONE_OPACITY_PULSE_MAX    = 0.40;

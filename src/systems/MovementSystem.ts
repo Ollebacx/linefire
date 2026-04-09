@@ -21,7 +21,7 @@ export interface InputSnapshot {
   mousePosition: Position | null;
   joystickDirection: Position;
   isTouchDevice: boolean;
-  controlScheme: 'keyboard' | 'mouse';
+  controlScheme: 'keyboard' | 'mouse' | 'wasd_mouse';
 }
 
 // ─── Player movement ──────────────────────────────────────────────────────────
@@ -40,16 +40,22 @@ export function applyPlayerMovement(
     dx = input.joystickDirection.x * p.speed;
     dy = input.joystickDirection.y * p.speed;
   } else if (input.controlScheme === 'mouse' && input.mousePosition) {
-    // ── Mouse scheme: move toward cursor when cursor is on canvas ──
-    const playerCenter = getCenter(p);
-    const worldX = input.mousePosition.x + camera.x;
-    const worldY = input.mousePosition.y + camera.y;
-    const vecX = worldX - playerCenter.x;
-    const vecY = worldY - playerCenter.y;
-    const dist = Math.sqrt(vecX ** 2 + vecY ** 2);
-    if (dist > p.width * 0.5) {
-      dx = (vecX / dist) * p.speed;
-      dy = (vecY / dist) * p.speed;
+    // ── Mouse scheme: move toward cursor — UNLESS a WASD/arrow key is held ──
+    const keys = input.keysPressed;
+    const anyKeyHeld = keys['w'] || keys['W'] || keys['s'] || keys['S'] ||
+                       keys['a'] || keys['A'] || keys['d'] || keys['D'] ||
+                       keys['ArrowUp'] || keys['ArrowDown'] || keys['ArrowLeft'] || keys['ArrowRight'];
+    if (!anyKeyHeld) {
+      const playerCenter = getCenter(p);
+      const worldX = input.mousePosition.x + camera.x;
+      const worldY = input.mousePosition.y + camera.y;
+      const vecX = worldX - playerCenter.x;
+      const vecY = worldY - playerCenter.y;
+      const dist = Math.sqrt(vecX ** 2 + vecY ** 2);
+      if (dist > p.width * 0.5) {
+        dx = (vecX / dist) * p.speed;
+        dy = (vecY / dist) * p.speed;
+      }
     }
   } else {
     // ── Keyboard mode, OR mouse mode with cursor off-canvas ──

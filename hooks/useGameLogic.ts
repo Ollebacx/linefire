@@ -2429,6 +2429,27 @@ export const useGameLogic = (
     setGameState(prev => {
         if (prev.gameStatus !== 'SHOP') return prev;
 
+        // Toggle: if already fully maxed → reset, otherwise → max out
+        const allMaxed = prev.availableUpgrades.every(u => {
+            const def = INITIAL_UPGRADES.find(i => i.id === u.id);
+            return def ? u.currentLevel >= def.maxLevel : true;
+        });
+
+        if (allMaxed) {
+            const freshUpgrades = INITIAL_UPGRADES.map(u => ({ ...u, cost: u.baseCost, currentLevel: 0 }));
+            const freshPlayer: Player = {
+                ...INITIAL_PLAYER_STATE,
+                gold: prev.player.gold,
+                health: INITIAL_PLAYER_STATE.maxHealth,
+            };
+            return {
+                ...prev,
+                player: freshPlayer,
+                availableUpgrades: freshUpgrades,
+                unlockedAllyTypes: [AllyType.SHOTGUN, AllyType.RIFLEMAN, AllyType.GUN_GUY],
+            };
+        }
+
         let newPlayer: Player = {
             ...prev.player, 
             maxHealth: INITIAL_PLAYER_STATE.maxHealth,
@@ -2556,10 +2577,8 @@ export const useGameLogic = (
             deployShieldZone();
         }
       } else if (key === 'd' && e.ctrlKey) {
-          if (gameState.gameStatus === 'SHOP') {
-            e.preventDefault();
-            maxOutAllUpgrades();
-          }
+          e.preventDefault();
+          maxOutAllUpgrades();
       } else {
         setGameState(prev => ({ ...prev, keysPressed: { ...prev.keysPressed, [key]: true } }));
       }

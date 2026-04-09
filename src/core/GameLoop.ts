@@ -58,6 +58,8 @@ import {
 import { ALLY_SPAWN_INTERVAL, ALLY_PICKUP_HEALTH_RESTORE } from '../constants/ally';
 import { GOLD_MAGNET_PULL_SPEED, PATH_HISTORY_LENGTH } from '../constants/player';
 import { UI_ACCENT_WARNING, UI_ACCENT_CRITICAL } from '../constants/ui';
+import { INITIAL_LOG_DEFINITIONS } from '../constants';
+import type { LogEntry } from '../types';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const TARGET_FPS      = 60;
@@ -886,6 +888,16 @@ export class GameLoop {
       highestRoundAchievedThisRun: Math.max(newPlayer.highestRoundAchievedThisRun ?? 0, store.round),
     };
 
+    // ── 19.6. Evaluate medal/log conditions ───────────────────────────────
+    const newLogs: LogEntry[] = store.logs.map(entry => {
+      if (entry.isUnlocked) return entry;
+      const def = INITIAL_LOG_DEFINITIONS.find(d => d.id === entry.id);
+      if (def && def.condition(newPlayer, newEnemies)) {
+        return { ...entry, isUnlocked: true };
+      }
+      return entry;
+    });
+
     // ── 20. Patch store ────────────────────────────────────────────────────
     useGameStore.getState().applyTickResult({
       player:               newPlayer,
@@ -916,6 +928,7 @@ export class GameLoop {
       waveTitleTimer,
       weaponDrops:          newWeaponDrops,
       weaponDropSpawnTimer: newWeaponDropSpawnTimer,
+      logs:                 newLogs,
     });
   }
 
@@ -936,7 +949,21 @@ export class GameLoop {
     camera: Position,
     viewport: Size,
   ): Position | null {
-    // Always auto-aim at the nearest enemy (like allies)
+    const scheme = store.controlScheme ?? 'keyboard';
+
+    // wasd_mouse: player aims manually with the mouse cursor
+    if (scheme === 'wasd_mouse' && store.mousePosition) {
+      const cx = player.x + player.width  / 2;
+      const cy = player.y + player.height / 2;
+      const worldX = store.mousePosition.x + camera.x;
+      const worldY = store.mousePosition.y + camera.y;
+      const dx = worldX - cx;
+      const dy = worldY - cy;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      return len > 5 ? { x: dx / len, y: dy / len } : null;
+    }
+
+    // keyboard / mouse: auto-aim at nearest enemy
     const target = findClosestEnemy(player, store.enemies, Infinity, camera, viewport, false);
     if (!target) return null;
     const cx = player.x + player.width  / 2;

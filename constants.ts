@@ -118,11 +118,11 @@ export const RPG_IMPACT_CAMERA_SHAKE_INTENSITY = 5;
 export const RPG_IMPACT_CAMERA_SHAKE_DURATION = 15;
 export const RPG_AOE_RADIUS = 60;
 
-export const ALLY_FLAMER_DAMAGE = 4;
-export const ALLY_FLAMER_COOLDOWN = 30;
-export const ALLY_FLAMER_RANGE = ALLY_MINIGUNNER_RANGE;
+export const ALLY_FLAMER_DAMAGE = 8;
+export const ALLY_FLAMER_COOLDOWN = 14;
+export const ALLY_FLAMER_RANGE = 220; // close-range specialist
 export const ALLY_FLAMER_PROJECTILE_COUNT = 4;
-export const ALLY_FLAMER_SPREAD_ANGLE = 0;
+export const ALLY_FLAMER_SPREAD_ANGLE = 40; // wide fire cone
 
 export const ALLY_RIFLEMAN_DAMAGE = 9;
 export const ALLY_RIFLEMAN_COOLDOWN = 20;
@@ -136,8 +136,8 @@ export const AIRSTRIKE_PROJECTILE_SIZE: Size = { width: 10, height: 22 };
 
 export const PLAYER_ALLY_PROJECTILE_SPEED = 4; // Base speed, player can upgrade this for their own projectiles
 export const ENEMY_PROJECTILE_SPEED = 2.8;
-export const FLAMER_PROJECTILE_SPEED = PLAYER_ALLY_PROJECTILE_SPEED * 0.5;
-export const FLAMER_PROJECTILE_MAX_TRAVEL_DISTANCE = 120;
+export const FLAMER_PROJECTILE_SPEED        = PLAYER_ALLY_PROJECTILE_SPEED * 1.0;
+export const FLAMER_PROJECTILE_MAX_TRAVEL_DISTANCE = 350; // covers full range, no mid-air fade
 export const AIRSTRIKE_MISSILE_SPEED = 7;
 
 export const COLLECTIBLE_ALLY_SIZE: Size = ALLY_SIZE;
@@ -214,15 +214,15 @@ export const WAVE_TITLE_FADE_OUT_DURATION_TICKS = 30;
 
 export const TUTORIAL_MESSAGES: string[] = [
     "Welcome! Move with Arrow Keys (<kbd class=\"kbd-minimal\">←</kbd> <kbd class=\"kbd-minimal\">↑</kbd> <kbd class=\"kbd-minimal\">↓</kbd> <kbd class=\"kbd-minimal\">→</kbd>), or Mouse. On touch devices, use the joystick. Try moving around.", // Step 0
-    "Your vector auto-targets and shoots the closest hostile. Observe how it prioritizes targets.", // Step 1
-    "Collect units like this to add them to your squad. They'll fight with you!", // Step 2
-    "Destroyed hostiles drop Gold. Pick them up to spend on augments later. Engage these targets!", // Step 3
-    "This is your Integrity (health). If it reaches zero, the run ends. Keep an eye on it!", // Step 4 - HUD Health
-    "This shows the current Wave. Hostiles become more challenging over time.", // Step 5 - HUD Wave
-    "This is your collected Gold. Spend this on augments between deployments.", // Step 6 - HUD Gold
-    "This timer shows when the next support unit can be collected.", // Step 7 - HUD Ally Timer
-    "Defeat enemies quickly to build a combo. High combos earn powerful Airstrikes! Press <kbd class=\"kbd-minimal\">Q</kbd> or click anywhere on screen. Try it now!", // Step 8 - Airstrike
-    "Press <kbd class=\"kbd-minimal\">E</kbd> to deploy a temporary Shield Zone. This is its cooldown timer.", // Step 9 - Shield
+    "You auto-target and shoot the nearest enemy. Keep moving and stay aggressive!", // Step 1
+    "Collect allies like this to grow your squad. They'll fight alongside you!", // Step 2
+    "Enemies drop Gold when killed. Pick it up to spend on upgrades between waves. Take out these targets!", // Step 3
+    "This is your Health. If it drops to zero, the run is over. Don't let them get close!", // Step 4 - HUD Health
+    "This shows the current Wave. Enemies get harder as the waves go on.", // Step 5 - HUD Wave
+    "This is your Gold. Spend it on upgrades between waves.", // Step 6 - HUD Gold
+    "This timer shows when you can pick up the next ally.", // Step 7 - HUD Ally Timer
+    "Kill enemies fast to build a combo. High combos unlock Airstrikes! Press <kbd class=\"kbd-minimal\">Q</kbd> or click anywhere on screen. Try it!", // Step 8 - Airstrike
+    "Press <kbd class=\"kbd-minimal\">E</kbd> to activate a temporary Shield Zone. This is its cooldown timer.", // Step 9 - Shield
     "Tutorial complete! You're ready to survive." // Step 10 - End
 ];
 
@@ -279,7 +279,7 @@ export const SHIELD_PULSE_PARTICLE_COUNT = 10;
 
 // Shield Zone Constants
 export const SHIELD_ZONE_DEFAULT_DURATION = 300;  // 5 seconds at 60 TPS
-export const SHIELD_ZONE_DEFAULT_RADIUS = 100;
+export const SHIELD_ZONE_DEFAULT_RADIUS = 60;
 export const SHIELD_ZONE_ABILITY_BASE_COOLDOWN = 1200; // 20 seconds
 // Hard floor: cooldown can never drop below this so the shield can NEVER be
 // active more than ~50 % of the time (floor = 900 ticks = 15 s).
@@ -395,7 +395,7 @@ export const INITIAL_UPGRADES: Upgrade[] = [
   {
     id: UpgradeType.UNLOCK_SHIELD_ABILITY,
     name: 'Shield Ability',
-    description: 'Unlock: deploy a protective barrier that blocks enemy bullets. One-time purchase.',
+    description: 'Unlock: activate a protective barrier that blocks enemy bullets. One-time purchase.',
     baseCost: 2000, cost: 2000, currentLevel: 0, maxLevel: 1, costScalingFactor: 1, icon: ShieldCheckIcon,
     apply: (player: Player, currentCost: number) => ({ player: { ...player, shieldAbilityUnlocked: true, gold: player.gold - currentCost } }),
   },
@@ -409,9 +409,9 @@ export const INITIAL_UPGRADES: Upgrade[] = [
   {
     id: UpgradeType.SHIELD_RADIUS,
     name: 'Shield Size',
-    description: '+10% shield radius per level. Covers more of your squad.',
+    description: '+10px shield radius per level. Covers more of your squad.',
     baseCost: 1200, cost: 1200, currentLevel: 0, maxLevel: 5, costScalingFactor: 1.8, icon: CircleStackIcon,
-    apply: (player: Player, currentCost: number) => ({ player: { ...player, shieldZoneBaseRadius: player.shieldZoneBaseRadius * 1.1, gold: player.gold - currentCost }}),
+    apply: (player: Player, currentCost: number) => ({ player: { ...player, shieldZoneBaseRadius: player.shieldZoneBaseRadius + 10, gold: player.gold - currentCost }}),
   },
   {
     id: UpgradeType.SHIELD_COOLDOWN_REDUCTION,
@@ -560,33 +560,33 @@ export const SCENERY_VISUAL_KEYS: string[] = [];
 
 export const CHAMPION_CHOICES: ChampionChoice[] = [
   {
-    id: 'GUN_GUY', name: 'Vector Prime', description: 'Standard issue. Balanced single-vector output.',
+    id: 'GUN_GUY', name: 'Gunner', description: 'Standard issue soldier. Balanced firepower and solid burst fire.',
     colorClass: '',
     statsPreview: '6-Shot Burst'
   },
   {
-    id: AllyType.SHOTGUN, name: 'Scatter Node', description: 'Emits a fan of three short-range vectors.',
-    colorClass: '', statsPreview: 'Proximal Spread'
+    id: AllyType.SHOTGUN, name: 'Breacher', description: 'Fires a wide spread of pellets. Devastating at close range.',
+    colorClass: '', statsPreview: 'Close-Range Spread'
   },
   {
-    id: AllyType.SNIPER, name: 'Focus Lance', description: 'Projects a single, high-energy long-distance vector.',
-    colorClass: '', statsPreview: 'Extended Precision'
+    id: AllyType.SNIPER, name: 'Marksman', description: 'High-power long-range rifle. Drops enemies before they close in.',
+    colorClass: '', statsPreview: 'Long-Range Precision'
   },
   {
-    id: AllyType.MINIGUNNER, name: 'Pulse Array', description: 'Rapidly projects a stream of kinetic vectors.',
-    colorClass: '', statsPreview: 'Sustained Stream'
+    id: AllyType.MINIGUNNER, name: 'Minigunner', description: 'Rapid sustained fire. The highest raw DPS in the squad.',
+    colorClass: '', statsPreview: 'Full-Auto Suppression'
   },
   {
-    id: AllyType.RIFLEMAN, name: 'Line Projector', description: 'Consistent and accurate medium-range vector projection.',
-    colorClass: '', statsPreview: 'Sustained Vector'
+    id: AllyType.RIFLEMAN, name: 'Rifleman', description: 'Reliable and accurate at medium range. The backbone of any squad.',
+    colorClass: '', statsPreview: 'Steady Aimed Fire'
   },
   {
-    id: AllyType.RPG_SOLDIER, name: 'Impact Driver', description: 'Launches a high-mass vector causing area disruption.',
-    colorClass: '', statsPreview: 'High-Mass Impact (AoE)'
+    id: AllyType.RPG_SOLDIER, name: 'Rocket Soldier', description: 'Rocket launcher with splash damage. Clears groups fast.',
+    colorClass: '', statsPreview: 'Explosive AoE'
   },
   {
-    id: AllyType.FLAMER, name: 'Arc Emitter', description: 'Generates a close-range energy arc field for area denial.',
-    colorClass: '', statsPreview: 'Area Denial Field'
+    id: AllyType.FLAMER, name: 'Flamer', description: 'Short-range flamethrower. Melts anything that rushes you.',
+    colorClass: '', statsPreview: 'Area Flame Denial'
   },
 ];
 
@@ -619,17 +619,17 @@ export const MAX_CONCURRENT_SPECIAL_ENEMIES_ROUND_6_10 = 1;
 export const MAX_CONCURRENT_SPECIAL_ENEMIES_ROUND_11_PLUS = 3;
 
 export const INITIAL_LOG_DEFINITIONS: LogDefinition[] = [
-  { id: LogId.FIRST_BLOOD, name: 'First Blood', description: 'Neutralize your first hostile vector.', icon: CheckIcon, condition: (p) => p.currentRunKills >= 1, rewardGold: 100, rewardDescription: '+100 gold' },
-  { id: LogId.NATURAL_BORN_KILLER, name: 'Natural Born Killer', description: 'Neutralize 50 vectors in a single deployment.', icon: BoltIcon, condition: (p) => p.currentRunKills >= 50, rewardGold: 300, rewardDescription: '+300 gold' },
-  { id: LogId.BLOOD_THIRSTY, name: 'Blood Thirsty', description: 'Neutralize 150 vectors in a single deployment.', icon: BoltIcon, condition: (p) => p.currentRunKills >= 150, rewardGold: 600, rewardDescription: '+600 gold' },
-  { id: LogId.RAMPAGE, name: 'Rampage', description: 'Neutralize 300 vectors in a single deployment.', icon: BoltIcon, condition: (p) => p.currentRunKills >= 300, rewardGold: 1200, rewardDescription: '+1,200 gold' },
-  { id: LogId.MASS_MURDERER, name: 'Mass Murderer', description: 'Neutralize 450 vectors in a single deployment.', icon: BoltIcon, condition: (p) => p.currentRunKills >= 450, rewardGold: 2500, rewardDescription: '+2,500 gold' },
-  { id: LogId.TANK_DESTROYER, name: 'Tank Destroyer', description: 'Decommission 5 ROCKET_TANK units in a single deployment.', icon: ShieldCheckIcon, condition: (p) => p.currentRunTanksDestroyed >= 5, rewardGold: 800, rewardDescription: '+800 gold' },
-  { id: LogId.MANIAC, name: 'Maniac', description: 'Decommission 10 ROCKET_TANK units in a single deployment.', icon: ShieldCheckIcon, condition: (p) => p.currentRunTanksDestroyed >= 10, rewardGold: 1500, rewardDescription: '+1,500 gold' },
-  { id: LogId.COMMANDO, name: 'Commando', description: 'Decommission 30 ROCKET_TANK units in a single deployment.', icon: ShieldCheckIcon, condition: (p) => p.currentRunTanksDestroyed >= 30, rewardGold: 3000, rewardDescription: '+3,000 gold' },
-  { id: LogId.GET_SOME_GOLD, name: 'Gold Acquisition', description: 'Accumulate 7,000 gold units in a single deployment.', icon: BanknotesIcon, condition: (p) => p.currentRunGoldEarned >= 7000, rewardGold: 500, rewardDescription: '+500 gold' },
-  { id: LogId.GOLD_HOARDER, name: 'Gold Hoarder', description: 'Accumulate 15,000 gold units in a single deployment.', icon: BanknotesIcon, condition: (p) => p.currentRunGoldEarned >= 15000, rewardGold: 1000, rewardDescription: '+1,000 gold' },
-  { id: LogId.GOLD_BARON, name: 'Gold Baron', description: 'Accumulate 27,000 gold units in a single deployment.', icon: BanknotesIcon, condition: (p) => p.currentRunGoldEarned >= 27000, rewardGold: 2000, rewardDescription: '+2,000 gold' },
+  { id: LogId.FIRST_BLOOD, name: 'First Blood', description: 'Kill your first enemy.', icon: CheckIcon, condition: (p) => p.currentRunKills >= 1, rewardGold: 100, rewardDescription: '+100 gold' },
+  { id: LogId.NATURAL_BORN_KILLER, name: 'Natural Born Killer', description: 'Kill 50 enemies in a single run.', icon: BoltIcon, condition: (p) => p.currentRunKills >= 50, rewardGold: 300, rewardDescription: '+300 gold' },
+  { id: LogId.BLOOD_THIRSTY, name: 'Blood Thirsty', description: 'Kill 150 enemies in a single run.', icon: BoltIcon, condition: (p) => p.currentRunKills >= 150, rewardGold: 600, rewardDescription: '+600 gold' },
+  { id: LogId.RAMPAGE, name: 'Rampage', description: 'Kill 300 enemies in a single run.', icon: BoltIcon, condition: (p) => p.currentRunKills >= 300, rewardGold: 1200, rewardDescription: '+1,200 gold' },
+  { id: LogId.MASS_MURDERER, name: 'Mass Murderer', description: 'Kill 450 enemies in a single run.', icon: BoltIcon, condition: (p) => p.currentRunKills >= 450, rewardGold: 2500, rewardDescription: '+2,500 gold' },
+  { id: LogId.TANK_DESTROYER, name: 'Tank Destroyer', description: 'Destroy 5 Rocket Tanks in a single run.', icon: ShieldCheckIcon, condition: (p) => p.currentRunTanksDestroyed >= 5, rewardGold: 800, rewardDescription: '+800 gold' },
+  { id: LogId.MANIAC, name: 'Maniac', description: 'Destroy 10 Rocket Tanks in a single run.', icon: ShieldCheckIcon, condition: (p) => p.currentRunTanksDestroyed >= 10, rewardGold: 1500, rewardDescription: '+1,500 gold' },
+  { id: LogId.COMMANDO, name: 'Commando', description: 'Destroy 30 Rocket Tanks in a single run.', icon: ShieldCheckIcon, condition: (p) => p.currentRunTanksDestroyed >= 30, rewardGold: 3000, rewardDescription: '+3,000 gold' },
+  { id: LogId.GET_SOME_GOLD, name: 'Gold Rush', description: 'Collect 7,000 gold in a single run.', icon: BanknotesIcon, condition: (p) => p.currentRunGoldEarned >= 7000, rewardGold: 500, rewardDescription: '+500 gold' },
+  { id: LogId.GOLD_HOARDER, name: 'Gold Hoarder', description: 'Collect 15,000 gold in a single run.', icon: BanknotesIcon, condition: (p) => p.currentRunGoldEarned >= 15000, rewardGold: 1000, rewardDescription: '+1,000 gold' },
+  { id: LogId.GOLD_BARON, name: 'Gold Baron', description: 'Collect 27,000 gold in a single run.', icon: BanknotesIcon, condition: (p) => p.currentRunGoldEarned >= 27000, rewardGold: 2000, rewardDescription: '+2,000 gold' },
   { id: LogId.CAPTAIN_SQUAD, name: 'Squad Captain', description: 'Command a squad of 8 units (including self).', icon: UsersIcon, condition: (p) => p.allies.length >= 7, rewardGold: 500, rewardDescription: '+500 gold' },
   { id: LogId.LIEUTENANT_COLONEL_SQUAD, name: 'Lt. Colonel', description: 'Command a squad of 11 units (including self).', icon: UsersIcon, condition: (p) => p.allies.length >= 10, rewardGold: 1000, rewardDescription: '+1,000 gold' },
   { id: LogId.COLONEL_SQUAD, name: 'Colonel', description: 'Command a squad of 15 units (including self).', icon: UsersIcon, condition: (p) => p.allies.length >= 14, rewardGold: 2000, rewardDescription: '+2,000 gold' },

@@ -6,8 +6,8 @@ import type { SoundVolumes } from './SoundSettingsPanel';
 interface StartScreenProps {
   onStart: () => void;
   onStartTutorial: () => void;
-  controlScheme: 'keyboard' | 'mouse';
-  onControlSchemeChange: (scheme: 'keyboard' | 'mouse') => void;
+  controlScheme: 'keyboard' | 'mouse' | 'wasd_mouse';
+  onControlSchemeChange: (scheme: 'keyboard' | 'mouse' | 'wasd_mouse') => void;
   soundVolumes: SoundVolumes;
   isMuted: boolean;
   onVolumeChange: (key: keyof SoundVolumes, value: number) => void;
@@ -75,9 +75,10 @@ const StartScreen: React.FC<StartScreenProps> = ({
 
   useEffect(() => { setBestWave(getBestWave()); }, []);
 
-  const opts: { value: 'keyboard' | 'mouse'; label: string; sub: string }[] = [
-    { value: 'keyboard', label: 'KEYBOARD', sub: 'WASD + aim with mouse' },
-    { value: 'mouse',    label: 'MOUSE',    sub: 'cursor steers, click aims' },
+  const opts: { value: 'keyboard' | 'mouse' | 'wasd_mouse'; label: string; sub: string }[] = [
+    { value: 'keyboard',   label: 'KEYBOARD',    sub: 'WASD/arrows · auto-aim' },
+    { value: 'wasd_mouse', label: 'WASD + MOUSE', sub: 'WASD move · mouse aims' },
+    { value: 'mouse',      label: 'CURSOR',       sub: 'cursor steers · auto-aim' },
   ];
 
   return (

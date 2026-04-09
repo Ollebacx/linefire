@@ -333,7 +333,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
           onMouseLeave={e => { const b = e.currentTarget; b.style.background = 'rgba(0,229,255,0.08)'; b.style.boxShadow = '0 0 24px rgba(0,229,255,0.1), inset 0 1px 0 rgba(0,229,255,0.08)'; }}
           style={{ flex: 2, padding: 'clamp(10px,2vw,13px)', background: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.38)', borderRadius: 8, cursor: 'pointer', color: CYAN, fontSize: 'clamp(0.65rem,1.8vw,0.75rem)', letterSpacing: '0.22em', fontWeight: 400, fontFamily: "'Inter', sans-serif", boxShadow: '0 0 24px rgba(0,229,255,0.1), inset 0 1px 0 rgba(0,229,255,0.08)', transition: 'all 0.15s' }}
         >
-          DEPLOY →
+          ADVANCE →
         </button>
       </div>
     </div>

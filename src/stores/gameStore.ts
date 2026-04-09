@@ -69,7 +69,7 @@ export interface GameStore extends GameState {
   setKeyUp: (key: string) => void;
   setMousePosition: (pos: Position | null) => void;
 
-  setControlScheme: (scheme: 'keyboard' | 'mouse') => void;
+  setControlScheme: (scheme: 'keyboard' | 'mouse' | 'wasd_mouse') => void;
 
   // Dev helper
   maxOutAllUpgrades: () => void;
@@ -78,12 +78,13 @@ export interface GameStore extends GameState {
 
 // ─── Meta-progress persistence ──────────────────────────────────────────────
 const META_KEY = 'linefire_meta';
-const META_VERSION = 1;
+const META_VERSION = 2;
 
 interface MetaProgress {
   version: number;
   upgradeLevels: Record<string, number>;
   unlockedAllyTypes: AllyType[];
+  unlockedLogIds: string[];
 }
 
 // In-memory cache — avoids repeated JSON.parse on every buildInitialState call
@@ -95,8 +96,21 @@ function loadMeta(): MetaProgress | null {
     const raw = localStorage.getItem(META_KEY);
     if (!raw) { _metaCache = null; return null; }
     const parsed = JSON.parse(raw) as MetaProgress;
-    // Invalidate cache if saved with an older schema version
-    _metaCache = (parsed.version === META_VERSION) ? parsed : null;
+    if (parsed.version === META_VERSION) {
+      // Current schema — use as-is
+      _metaCache = parsed;
+    } else {
+      // Older schema (no version field or version < 2): migrate gracefully.
+      // Preserve whatever fields are present so users don't lose progress.
+      _metaCache = {
+        version: META_VERSION,
+        upgradeLevels:    parsed.upgradeLevels    ?? {},
+        unlockedAllyTypes: parsed.unlockedAllyTypes ?? [],
+        unlockedLogIds:   parsed.unlockedLogIds   ?? [],
+      };
+      // Persist migrated data immediately
+      localStorage.setItem(META_KEY, JSON.stringify(_metaCache));
+    }
     return _metaCache;
   } catch {
     _metaCache = null;
@@ -105,12 +119,15 @@ function loadMeta(): MetaProgress | null {
 }
 
 let _saveMetaTimer: ReturnType<typeof setTimeout> | null = null;
+// Dev-cheat toggle flag (persists for the browser session)
+let _devMaxed = false;
 
-export function saveMeta(upgrades: { id: string; currentLevel: number }[], unlocked: AllyType[]): void {
+export function saveMeta(upgrades: { id: string; currentLevel: number }[], unlocked: AllyType[], unlockedLogIds: string[] = []): void {
   const meta: MetaProgress = {
     version: META_VERSION,
     upgradeLevels: Object.fromEntries(upgrades.map(u => [u.id, u.currentLevel])),
     unlockedAllyTypes: unlocked,
+    unlockedLogIds,
   };
   // Update in-memory cache immediately so subsequent reads are consistent
   _metaCache = meta;
@@ -129,7 +146,7 @@ export function clearMeta(): void {
 }
 
 // ─── Initial state factory ────────────────────────────────────────────────────
-function buildInitialState(gameArea: Size, isTouchDevice: boolean, controlScheme?: 'keyboard' | 'mouse'): GameState {
+function buildInitialState(gameArea: Size, isTouchDevice: boolean, controlScheme?: 'keyboard' | 'mouse' | 'wasd_mouse'): GameState {
   let player: Player = {
     ...INITIAL_PLAYER_STATE,
     allies: [],
@@ -175,6 +192,9 @@ function buildInitialState(gameArea: Size, isTouchDevice: boolean, controlScheme
     if (meta.unlockedAllyTypes.length > 0) unlockedAllyTypes = meta.unlockedAllyTypes;
   }
 
+  // ── Restore persisted medals ────────────────────────────────────────────────
+  const persistedLogIds = new Set<string>(meta?.unlockedLogIds ?? []);
+
   const cam: Position = {
     x: Math.max(0, Math.min(player.x + player.width / 2 - gameArea.width / 2, WORLD_AREA.width - gameArea.width)),
     y: Math.max(0, Math.min(player.y + player.height / 2 - gameArea.height / 2, WORLD_AREA.height - gameArea.height)),
@@ -217,7 +237,7 @@ function buildInitialState(gameArea: Size, isTouchDevice: boolean, controlScheme
     airstrikeSpawnTimer: 0,
     pendingInitialSpawns: 0,
     initialSpawnTickCounter: 0,
-    logs: INITIAL_LOG_DEFINITIONS.map(d => ({ id: d.id, name: d.name, description: d.description, icon: d.icon, isUnlocked: false })),
+    logs: INITIAL_LOG_DEFINITIONS.map(d => ({ id: d.id, name: d.name, description: d.description, icon: d.icon, isUnlocked: persistedLogIds.has(d.id as string) })),
     gameOverPendingTimer: 0,
     waveTitleText: '',
     waveTitleTimer: 0,
@@ -234,7 +254,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   ...buildInitialState(
     { width: window.innerWidth, height: window.innerHeight },
     typeof window !== 'undefined' && (('ontouchstart' in window) || navigator.maxTouchPoints > 0),
-    typeof localStorage !== 'undefined' ? (localStorage.getItem('linefire_control_scheme') as 'keyboard' | 'mouse' | null) ?? 'keyboard' : 'keyboard',
+    typeof localStorage !== 'undefined' ? (localStorage.getItem('linefire_control_scheme') as 'keyboard' | 'mouse' | 'wasd_mouse' | null) ?? 'keyboard' : 'keyboard',
   ),
   joystickDirection: { x: 0, y: 0 },
 
@@ -257,12 +277,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
   // ── Tick result patch (called by GameLoop after systems run)
   applyTickResult: (partial) => set(s => {
     let extraGold = 0;
+    let metaLogsDirty = false;
     if (partial.logs) {
       partial.logs.forEach((newLog, i) => {
         const oldLog = s.logs[i];
         if (newLog.isUnlocked && !oldLog?.isUnlocked) {
           const def = INITIAL_LOG_DEFINITIONS.find(d => d.id === newLog.id);
           if (def?.rewardGold) extraGold += def.rewardGold;
+          metaLogsDirty = true;
         }
       });
     }
@@ -276,7 +298,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
         },
       };
     }
-    return { ...s, ...partial };
+    const nextState = { ...s, ...partial };
+    if (metaLogsDirty) {
+      saveMeta(nextState.availableUpgrades, nextState.unlockedAllyTypes, nextState.logs.filter(l => l.isUnlocked).map(l => l.id as string));
+    }
+    return nextState;
   }),
 
   // ── Start new round ────────────────────────────────────────────────────────
@@ -376,7 +402,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       specialEnemyState: { ...INITIAL_SPECIAL_ENEMY_SPAWN_STATE },
       comboTimer: 0, airstrikeAvailable: false, airstrikeActive: false, airstrikesPending: 0, airstrikeSpawnTimer: 0,
       pendingInitialSpawns: 0, initialSpawnTickCounter: 0,
-      logs: s.logs.map(l => ({ ...l, isUnlocked: false })),
+      logs: s.logs.map(l => ({ ...l, isUnlocked: new Set<string>(_metaCache?.unlockedLogIds ?? []).has(l.id as string) })),
       gameOverPendingTimer: 0, waveTitleText: '', waveTitleTimer: 0,
       weaponDrops: [], weaponDropSpawnTimer: WEAPON_DROP_SPAWN_TIMER,
       damageTexts: [], muzzleFlashes: [], effectParticles: [],
@@ -401,7 +427,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         ? { ...u, currentLevel: u.currentLevel + 1, cost: Math.floor(u.baseCost * Math.pow(u.costScalingFactor, u.currentLevel + 1)) }
         : u,
     );
-    saveMeta(newUpgrades, newUnlocked);
+    saveMeta(newUpgrades, newUnlocked, s.logs.filter(l => l.isUnlocked).map(l => l.id as string));
     return { ...s, player: newPlayer, availableUpgrades: newUpgrades, unlockedAllyTypes: newUnlocked, ...(updatedGameState ?? {}) };
   }),
 
@@ -439,7 +465,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const col = createCollectibleAlly(type, runPlayer, [], s.worldArea);
       if (col) initialCollectibles.push(col);
     }
-    const newLogs = s.logs.map(l => ({ ...l, isUnlocked: false }));
+    const _persistedRunLogIds = new Set<string>(_metaCache?.unlockedLogIds ?? []);
+    const newLogs = s.logs.map(l => ({ ...l, isUnlocked: _persistedRunLogIds.has(l.id as string) }));
     return {
       ...s, gameStatus: 'INIT_NEW_RUN', player: runPlayer, round: 1,
       enemies: [], projectiles: [], goldPiles: [], collectibleAllies: initialCollectibles,
@@ -656,7 +683,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   // ── Dev: max upgrades ────────────────────────────────────────────────────
   setControlScheme: (scheme) => {
     if (typeof localStorage !== 'undefined') localStorage.setItem('linefire_control_scheme', scheme);
-    set({ controlScheme: scheme });
+    set({ controlScheme: scheme as 'keyboard' | 'mouse' | 'wasd_mouse' });
   },
 
   clearMetaProgress: () => {
@@ -664,17 +691,37 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set(s => buildInitialState(s.gameArea, s.isTouchDevice ?? false, s.controlScheme));
   },
 
+
   maxOutAllUpgrades: () => set(s => {
+    if (_devMaxed) {
+      // ── RESET ─────────────────────────────────────────────────────────────
+      _devMaxed = false;
+      clearMeta();
+      const freshUpgrades = INITIAL_UPGRADES.map(u => ({ ...u, cost: u.baseCost, currentLevel: 0 }));
+      const freshPlayer: Player = {
+        ...INITIAL_PLAYER_STATE,
+        gold: s.player.gold,
+        health: INITIAL_PLAYER_STATE.maxHealth,
+      };
+      return {
+        ...s,
+        player: freshPlayer,
+        availableUpgrades: freshUpgrades,
+        unlockedAllyTypes: [AllyType.SHOTGUN, AllyType.RIFLEMAN, AllyType.GUN_GUY],
+      };
+    }
+
+    // ── MAX OUT ───────────────────────────────────────────────────────────────
+    _devMaxed = true;
     let p: Player = { ...s.player };
     const upgrades = s.availableUpgrades.map(u => {
       const max = INITIAL_UPGRADES.find(i => i.id === u.id)!.maxLevel;
       return { ...u, currentLevel: max, cost: Math.floor(u.baseCost * Math.pow(u.costScalingFactor, max)) };
     });
-    // Apply all upgrades at max level
     INITIAL_UPGRADES.forEach(def => {
       for (let i = 0; i < def.maxLevel; i++) {
         const result = def.apply(p, 0);
-        p = { ...result.player, gold: p.gold }; // keep gold
+        p = { ...result.player, gold: p.gold };
       }
     });
     p.health = p.maxHealth;

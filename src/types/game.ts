@@ -140,7 +140,7 @@ export interface GameState {
   unlockedAllyTypes: AllyType[];
   cameraShake: CameraShakeState | null;
   isTouchDevice?: boolean;
-  controlScheme: 'keyboard' | 'mouse';
+  controlScheme: 'keyboard' | 'mouse' | 'wasd_mouse';
   specialEnemyState: SpecialEnemySpawnState;
   comboTimer: number;
   airstrikeAvailable: boolean;
